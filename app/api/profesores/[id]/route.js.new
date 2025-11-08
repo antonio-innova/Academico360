@@ -1,0 +1,190 @@
+import { NextResponse } from 'next/server';
+import dbConnection from '../../../../database/db';
+import Profesor from '../../../../database/models/Profesor';
+
+// GET - Obtener un profesor específico por ID
+export async function GET(request, { params }) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+
+    const { id } = params;
+    console.log('Buscando profesor con ID:', id);
+    
+    // Buscar el profesor por ID
+    const profesor = await Profesor.findById(id);
+    
+    if (!profesor) {
+      console.log('Profesor no encontrado');
+      return NextResponse.json({
+        success: false,
+        message: 'Profesor no encontrado'
+      }, { status: 404 });
+    }
+    
+    console.log('Profesor encontrado:', profesor);
+    return NextResponse.json({
+      success: true,
+      message: 'Profesor encontrado',
+      data: profesor
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('Error al obtener profesor:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al obtener profesor',
+      error: error.message
+    }, { status: 500 });
+  }
+}
+
+// PUT - Actualizar un profesor existente
+export async function PUT(request, { params }) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+
+    const { id } = params;
+    const data = await request.json();
+    console.log('Actualizando profesor con ID:', id);
+    console.log('Datos recibidos para actualizar:', data);
+    
+    // Validar datos requeridos
+    if (!data.nombre || !data.apellido) {
+      return NextResponse.json({
+        success: false,
+        message: 'Faltan campos requeridos: nombre y apellido son obligatorios'
+      }, { status: 400 });
+    }
+    
+    // Buscar el profesor por ID
+    const profesor = await Profesor.findById(id);
+    
+    if (!profesor) {
+      console.log('Profesor no encontrado para actualizar');
+      return NextResponse.json({
+        success: false,
+        message: 'Profesor no encontrado'
+      }, { status: 404 });
+    }
+    
+    console.log('Profesor encontrado para actualizar:', profesor);
+    
+    // Actualizar campos
+    profesor.nombre = data.nombre;
+    profesor.apellido = data.apellido;
+    profesor.email = data.email || profesor.email;
+    profesor.telefono = data.telefono || profesor.telefono;
+    profesor.especialidad = data.especialidad || profesor.especialidad;
+    
+    // Procesar la fecha de ingreso si existe
+    if (data.fechaIngreso !== undefined) {
+      try {
+        if (data.fechaIngreso) {
+          profesor.fechaIngreso = new Date(data.fechaIngreso);
+          console.log('Fecha de ingreso actualizada:', profesor.fechaIngreso);
+        } else {
+          profesor.fechaIngreso = null;
+        }
+      } catch (error) {
+        console.error('Error al procesar la fecha de ingreso:', error);
+      }
+    }
+    
+    // Solo actualizar cédula si se proporciona y no es 'N/P'
+    if (data.idU && data.idU !== 'N/P') {
+      profesor.idU = data.idU;
+    } else if (data.cedula && data.cedula !== 'N/P') {
+      profesor.idU = data.cedula;
+    }
+    
+    // Si se proporciona la institución, actualizar el ID del profesor según la institución
+    if (data.institucion) {
+      console.log('Institución recibida para actualizar:', data.institucion);
+      
+      // Generar un nuevo ID basado en la institución si es necesario
+      if (data.institucion === 'Acacias') {
+        // Si ya tiene un ID con prefijo AP, mantenerlo, de lo contrario crear uno nuevo
+        if (!profesor.idAP || !profesor.idAP.startsWith('AP')) {
+          profesor.idAP = `AP${Date.now()}`;
+        }
+      } else if (data.institucion === 'IUTCM') {
+        // Si ya tiene un ID con prefijo IP, mantenerlo, de lo contrario crear uno nuevo
+        if (!profesor.idAP || !profesor.idAP.startsWith('IP')) {
+          profesor.idAP = `IP${Date.now()}`;
+        }
+      }
+      
+      console.log('ID del profesor actualizado:', profesor.idAP);
+    }
+    
+    console.log('Datos actualizados del profesor:', profesor);
+    
+    // Guardar cambios
+    await profesor.save();
+    console.log('Profesor actualizado correctamente');
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Profesor actualizado correctamente',
+      data: profesor
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('Error al actualizar profesor:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al actualizar profesor',
+      error: error.message
+    }, { status: 500 });
+  }
+}
+
+// DELETE - Eliminar un profesor
+export async function DELETE(request, { params }) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+
+    const { id } = params;
+    console.log('Eliminando profesor con ID:', id);
+    
+    // Buscar y eliminar el profesor
+    const resultado = await Profesor.findByIdAndDelete(id);
+    
+    if (!resultado) {
+      console.log('Profesor no encontrado para eliminar');
+      return NextResponse.json({
+        success: false,
+        message: 'Profesor no encontrado'
+      }, { status: 404 });
+    }
+    
+    console.log('Profesor eliminado correctamente');
+    return NextResponse.json({
+      success: true,
+      message: 'Profesor eliminado correctamente'
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('Error al eliminar profesor:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al eliminar profesor',
+      error: error.message
+    }, { status: 500 });
+  }
+}

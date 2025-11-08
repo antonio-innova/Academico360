@@ -1,0 +1,88 @@
+"use client";
+
+import { useState, useEffect } from 'react';
+import { handleApiResponse } from '../../utils/fetchUtils';
+import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import confetti from 'canvas-confetti';
+// Usaremos un sistema de alertas personalizado en lugar de react-toastify
+import { mostrarElemento, esDocente, esControl } from '../components/PermisosHelper';
+import { getFormValue, isFormAvailable } from '../components/SafeFormAccess';
+import { formatearNombreCompleto } from '../components/FormatearNombre';
+import StudentNameDisplay, { formatFullName } from '../components/StudentNameDisplay';
+import GestionRepresentante from '../components/GestionRepresentante';
+// Eliminamos la importación de applyToggleStyles ya que no existe
+
+export default function SidebarPage() {
+  // Estados para manejar los datos y la interfaz
+  const [activeTab, setActiveTab] = useState('asignaciones'); // Iniciar con asignaciones como pestaña activa por defecto
+  const [userType, setUserType] = useState(null); // Estado para almacenar el tipo de usuario
+  const [userData, setUserData] = useState(null);
+  const [institucion, setInstitucion] = useState('');
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const router = useRouter();
+  
+  // Estados para gestión de datos
+  const [docentes, setDocentes] = useState([]);
+  const [alumnos, setAlumnos] = useState([]);
+  const [materias, setMaterias] = useState([]);
+  const [asignaciones, setAsignaciones] = useState([]);
+  const [periodos, setPeriodos] = useState([]);
+  const [periodoActual, setPeriodoActual] = useState(null);
+  const [updatingEstado, setUpdatingEstado] = useState(false);
+  
+  // Estados para modales
+  const [showModal, setShowModal] = useState(false);
+  const [modalType, setModalType] = useState('');
+  const [modalData, setModalData] = useState(null);
+  // Estado para edición de profesor
+  const [editingAsignacionId, setEditingAsignacionId] = useState(null);
+  const [editingProfesorId, setEditingProfesorId] = useState('');
+  // Estado para notificaciones
+  const [notification, setNotification] = useState(null); // { type: 'success' | 'error', message: string }
+  
+  // Efecto para cerrar el modal al cargar la página
+  useEffect(() => {
+    setShowModal(false);
+    setModalType('');
+    setModalData(null);
+  }, []);
+  
+  // Efecto para cargar los datos del usuario y establecer la pestaña activa adecuada
+  useEffect(() => {
+    try {
+      // Intentar obtener el tipo de usuario
+      const userTypeCookie = document.cookie
+        .split('; ')
+        .find(row => row.startsWith('userType='));
+      
+      if (userTypeCookie) {
+        const tipo = userTypeCookie.split('=')[1];
+        setUserType(tipo);
+        
+        // Si es docente, establecer asignaciones como pestaña activa por defecto
+        if (tipo === 'docente') {
+          setActiveTab('asignaciones');
+          console.log('Usuario docente detectado, mostrando solo asignaciones');
+        } else if (tipo === 'control') {
+          // Si es control, puede iniciar en docentes
+          setActiveTab('docentes');
+          console.log('Usuario control detectado, mostrando todas las opciones');
+        }
+      } else {
+        // Si no hay tipo de usuario, establecer asignaciones como pestaña activa por defecto
+        setActiveTab('asignaciones');
+        setUserType('alumno'); // Valor por defecto
+        console.log('Tipo de usuario no detectado, usando asignaciones como pestaña por defecto');
+      }
+    } catch (error) {
+      console.error('Error al obtener el tipo de usuario:', error);
+      // Por defecto, mostrar asignaciones
+      setActiveTab('asignaciones');
+      setUserType('alumno'); // Valor por defecto en caso de error
+    }
+  }, []);
+}

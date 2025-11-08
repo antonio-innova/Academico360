@@ -1,0 +1,169 @@
+import { NextResponse } from 'next/server';
+import dbConnection from '../../../database/db';
+import Profesor from '../../../database/models/Profesor';
+
+// GET - Obtener todos los profesores
+export async function GET(request) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+
+    // Obtener parámetros de la URL
+    const { searchParams } = new URL(request.url);
+    const userId = searchParams.get('userId');
+    const creadorId = searchParams.get('creadorId');
+    const institucion = searchParams.get('institucion');
+    
+    console.log('Parámetros de búsqueda:', { userId, creadorId, institucion });
+    
+    // Construir el filtro de búsqueda basado en la institución
+    let filter = {};
+    
+    if (institucion === 'IUTCM') {
+      // Para IUTCM, buscar profesores con idIP
+      filter = {
+        'idIP': { $exists: true }
+      };
+      console.log('Filtro aplicado: Profesores de IUTCM (con idIP)');
+    } else if (institucion === 'Acacias' || !institucion) {
+      // Para Acacias o si no se especifica institución, buscar profesores con idAP
+      filter = {
+        'idAP': { $exists: true }
+      };
+      console.log('Filtro aplicado: Profesores de Acacias (con idAP)');
+    } else {
+      // Si se proporciona otra institución, no aplicar filtro de ID específico
+      console.log('Filtro aplicado: Todos los profesores (sin filtro de institución específico)');
+    }
+    
+    // Si se proporciona un userId o creadorId, filtrar por el creador
+    if (creadorId) {
+      filter.creadoPor = creadorId;
+    } else if (userId) {
+      filter.creadoPor = userId;
+    }
+    
+    console.log('Filtro de búsqueda completo:', filter);
+    
+    // Buscar profesores en la base de datos
+    const profesores = await Profesor.find(filter);
+    console.log(`Encontrados ${profesores.length} profesores`);
+    
+    return NextResponse.json({
+      success: true,
+      message: 'Profesores obtenidos correctamente',
+      data: profesores
+    }, { status: 200 });
+
+  } catch (error) {
+    console.error('Error al obtener profesores:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al obtener profesores',
+      error: error.message
+    }, { status: 500 });
+  }
+}
+
+// POST - Crear un nuevo profesor
+export async function POST(request) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+
+    // Obtener datos del cuerpo de la solicitud
+    const data = await request.json();
+    console.log('Datos recibidos para crear profesor:', data);
+    
+    // Validar datos requeridos
+    if (!data.nombre || !data.apellido) {
+      return NextResponse.json({
+        success: false,
+        message: 'Faltan campos requeridos: nombre y apellido son obligatorios'
+      }, { status: 400 });
+    }
+
+    // Verificar si el usuario existe
+    if (!data.userId) {
+      return NextResponse.json({
+        success: false,
+        message: 'Se requiere el ID del usuario que crea el profesor'
+      }, { status: 400 });
+    }
+
+    // Procesar la fecha de ingreso si existe
+    let fechaIngreso = null;
+    if (data.fechaIngreso) {
+      try {
+        fechaIngreso = new Date(data.fechaIngreso);
+        console.log('Fecha de ingreso procesada:', fechaIngreso);
+      } catch (error) {
+        console.error('Error al procesar la fecha de ingreso:', error);
+      }
+    }
+
+    // Crear nuevo profesor con todos los campos requeridos
+    const nuevoProfesor = new Profesor({
+      idU: data.cedula || 'N/P',
+      nombre: data.nombre,
+      apellido: data.apellido,
+      email: data.email || '',
+      telefono: data.telefono || '',
+      especialidad: data.especialidad || '',
+      fechaIngreso: fechaIngreso,
+      creadoPor: data.userId,
+      tipoCreador: data.userType || 'control'
+    });
+    
+    // Asignar IDs dinámicos según el tipo de usuario y la institución
+    if (data.userType === 'control' || data.userType === 'admin') {
+      // Verificar la institución para asignar el prefijo correcto
+      if (data.institucion === 'Acacias') {
+        nuevoProfesor.idAP = `AP${Date.now()}`;
+      } else if (data.institucion === 'IUTCM') {
+        nuevoProfesor.idIP = `IP${Date.now()}`;
+      } else {
+        // Valor por defecto si no se especifica la institución
+        nuevoProfesor.idAP = `AP${Date.now()}`;
+      }
+    }
+    console.log('Tipo de usuario:', data.userType);
+    console.log('Institucion:', data.institucion);
+    console.log('Nuevo profesor a guardar:', nuevoProfesor);
+    
+    try {
+      // Guardar en la base de datos
+      const profesorGuardado = await nuevoProfesor.save();
+      console.log('Profesor guardado correctamente con ID:', profesorGuardado._id);
+      
+      return NextResponse.json({
+        success: true,
+        message: 'Profesor creado correctamente',
+        data: profesorGuardado
+      }, { status: 201 });
+    } catch (saveError) {
+      console.error('Error al guardar profesor en la base de datos:', saveError);
+      return NextResponse.json({
+        success: false,
+        message: 'Error al guardar profesor en la base de datos',
+        error: saveError.message
+      }, { status: 500 });
+    }
+
+  } catch (error) {
+    console.error('Error al crear profesor:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al crear profesor',
+      error: error.message
+    }, { status: 500 });
+  }
+}

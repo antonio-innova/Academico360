@@ -1,0 +1,82 @@
+/* Optimizaciones de rendimiento para inputs */
+
+/* Eliminar transiciones costosas en inputs de formulario */
+.performance-input {
+  transition: none !important;
+  transform: translateZ(0); /* Activar aceleración de hardware */
+  will-change: auto;
+}
+
+/* Optimizar focus para inputs críticos */
+.performance-input:focus {
+  transition: none !important;
+  outline: 2px solid #3b82f6;
+  outline-offset: 2px;
+}
+
+/* Reducir repaints en contenedores de formulario */
+.performance-form-container {
+  contain: layout style paint;
+  transform: translateZ(0);
+}
+
+/* Optimizar dropdowns y selects */
+.performance-select {
+  appearance: none;
+  transition: none !important;
+  transform: translateZ(0);
+}
+
+/* Deshabilitar animaciones en elementos que cambian frecuentemente */
+.performance-no-animations * {
+  animation-duration: 0.01ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.01ms !important;
+  scroll-behavior: auto !important;
+}
+
+/* Optimizar inputs de texto específicamente */
+input[type="text"].performance-input,
+input[type="email"].performance-input,
+input[type="tel"].performance-input {
+  backface-visibility: hidden;
+  perspective: 1000px;
+  transform: translate3d(0, 0, 0);
+}
+
+/* Prevenir layout thrashing en campos que cambian de tamaño */
+.performance-stable-layout {
+  min-height: 40px;
+  box-sizing: border-box;
+}
+
+/* Optimizar para móviles */
+@media (max-width: 768px) {
+  .performance-input {
+    font-size: 16px; /* Prevenir zoom en iOS */
+  }
+}
+
+/* Clase para campos críticos de rendimiento */
+.critical-performance-input {
+  /* Desactivar completamente transiciones */
+  transition: none !important;
+  /* Optimizar rendering */
+  transform: translateZ(0);
+  backface-visibility: hidden;
+  /* Reducir repaints */
+  contain: layout style;
+  /* Preparar para cambios frecuentes */
+  will-change: contents;
+}
+
+/* Hover states sin transiciones */
+.critical-performance-input:hover {
+  border-color: #60a5fa;
+}
+
+.critical-performance-input:focus {
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+

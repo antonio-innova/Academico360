@@ -1,0 +1,943 @@
+import { NextResponse } from 'next/server';
+import dbConnection from '@/database/db';
+import mongoose from 'mongoose';
+import Aula from '@/database/models/Aula';
+import Asignacion from '@/database/models/Asignacion';
+import Estudiante from '@/database/models/Estudiante';
+import Materia from '@/database/models/Materia';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
+
+// Función para convertir nota numérica a alfabética
+function convertirNotaAlfabetica(nota) {
+  if (nota >= 19) return 'A+';
+  if (nota >= 16) return 'A';
+  if (nota >= 13) return 'B';
+  if (nota >= 10) return 'C';
+  if (nota >= 7) return 'D';
+  return 'E';
+}
+
+export async function GET(request) {
+  try {
+    // Obtener parámetros de la URL
+    const { searchParams } = new URL(request.url);
+    const aulaId = searchParams.get('aulaId');
+    const momento = parseInt(searchParams.get('momento'));
+    const studentId = searchParams.get('studentId');
+
+    if (!aulaId || !momento) {
+      return NextResponse.json({
+        success: false,
+        error: 'Parámetros incompletos'
+      }, { status: 400 });
+    }
+
+    await dbConnection.connectDB();
+
+    // Obtener el aula directamente (ya tiene estudiantes y asignaciones embebidos)
+    const aulaData = await Aula.findById(aulaId);
+
+    if (!aulaData) {
+      return NextResponse.json({
+        success: false,
+        message: 'Aula no encontrada'
+      }, { status: 404 });
+    }
+
+    // Filtrar estudiantes si se especificó un ID
+    const estudiantesAula = studentId ? 
+      aulaData.alumnos.filter(est => est._id.toString() === studentId) : 
+      aulaData.alumnos;
+
+    if (!estudiantesAula || estudiantesAula.length === 0) {
+      return NextResponse.json({
+        success: false,
+        message: 'No se encontraron estudiantes en el aula'
+      }, { status: 404 });
+    }
+
+    // Obtener las asignaciones
+    const asignaciones = aulaData.asignaciones || [];
+
+    // Inicializar el objeto de calificaciones para todos los estudiantes
+    const calificacionesPorMateria = {};
+    estudiantesAula.forEach(estudiante => {
+      const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
+      if (estudianteId) {
+        calificacionesPorMateria[estudianteId] = [];
+      }
+    });
+
+    // Procesar cada asignación
+    asignaciones.forEach(asignacion => {
+      const materia = asignacion.materia;
+      
+      // Inicializar estructura para almacenar notas por momento
+      const notasPorMomento = {};
+      
+      // Obtener los puntos extras por momento de la asignación
+      const puntosPorMomento = asignacion.puntosPorMomento || {};
+      
+      // Crear objetos que mapeen los puntos extras por estudiante para cada momento
+      const puntosExtrasMomento1 = {};
+      const puntosExtrasMomento2 = {};
+      const puntosExtrasMomento3 = {};
+      
+      // Procesar puntos extras del momento 1
+      if (puntosPorMomento.momento1 && Array.isArray(puntosPorMomento.momento1)) {
+        puntosPorMomento.momento1.forEach(punto => {
+          if (punto.alumnoId && punto.puntos !== undefined) {
+            puntosExtrasMomento1[punto.alumnoId.toString()] = parseFloat(punto.puntos) || 0;
+          }
+        });
+      }
+      
+      // Procesar puntos extras del momento 2
+      if (puntosPorMomento.momento2 && Array.isArray(puntosPorMomento.momento2)) {
+        puntosPorMomento.momento2.forEach(punto => {
+          if (punto.alumnoId && punto.puntos !== undefined) {
+            puntosExtrasMomento2[punto.alumnoId.toString()] = parseFloat(punto.puntos) || 0;
+          }
+        });
+      }
+      
+      // Procesar puntos extras del momento 3
+      if (puntosPorMomento.momento3 && Array.isArray(puntosPorMomento.momento3)) {
+        puntosPorMomento.momento3.forEach(punto => {
+          if (punto.alumnoId && punto.puntos !== undefined) {
+            puntosExtrasMomento3[punto.alumnoId.toString()] = parseFloat(punto.puntos) || 0;
+          }
+        });
+      }
+      
+      // Procesar actividades del primer momento
+      const actividadesPrimerMomento = (asignacion.actividades || []).filter(act => 
+        parseInt(act.momento) === 1
+      );
+      
+      // Procesar actividades del segundo momento
+      const actividadesSegundoMomento = (asignacion.actividades || []).filter(act => 
+        parseInt(act.momento) === 2
+      );
+
+      // Procesar actividades del tercer momento
+      const actividadesTercerMomento = (asignacion.actividades || []).filter(act => 
+        parseInt(act.momento) === 3
+      );
+      
+      // Procesar notas del primer momento
+      actividadesPrimerMomento.forEach(actividad => {
+        (actividad.calificaciones || []).forEach(cal => {
+          const alumnoId = cal.alumnoId;
+          if (!notasPorMomento[alumnoId]) {
+            notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+          }
+          notasPorMomento[alumnoId].momento1.push(cal.nota);
+        });
+      });
+      
+      // Procesar notas del segundo momento
+      if (momento >= 2) {
+        actividadesSegundoMomento.forEach(actividad => {
+          (actividad.calificaciones || []).forEach(cal => {
+            const alumnoId = cal.alumnoId;
+            if (!notasPorMomento[alumnoId]) {
+              notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+            }
+            notasPorMomento[alumnoId].momento2.push(cal.nota);
+          });
+        });
+      }
+
+      // Procesar notas del tercer momento
+      if (momento === 3) {
+        actividadesTercerMomento.forEach(actividad => {
+          (actividad.calificaciones || []).forEach(cal => {
+            const alumnoId = cal.alumnoId;
+            if (!notasPorMomento[alumnoId]) {
+              notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+            }
+            notasPorMomento[alumnoId].momento3.push(cal.nota);
+          });
+        });
+      }
+
+      // Procesar las notas acumuladas para cada alumno
+      Object.keys(notasPorMomento).forEach(alumnoId => {
+        const notas = notasPorMomento[alumnoId];
+        
+        // Calcular promedio del primer momento
+        let promedioMomento1;
+        if (notas.momento1.length > 0) {
+          const sumaNotas1 = notas.momento1.reduce((a, b) => {
+            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
+            return a + (isNaN(nota) ? 1 : nota);
+          }, 0);
+          promedioMomento1 = sumaNotas1 / notas.momento1.length;
+          
+          // Sumar puntos extras del momento 1 si existen
+          const puntosExtra1 = puntosExtrasMomento1[alumnoId] || 0;
+          promedioMomento1 += puntosExtra1;
+          
+          // Limitar a 20 puntos máximo
+          promedioMomento1 = Math.min(20, promedioMomento1);
+        } else {
+          promedioMomento1 = 1;
+        }
+        
+        // Calcular promedio del segundo momento
+        let promedioMomento2;
+        if (notas.momento2.length > 0) {
+          const sumaNotas2 = notas.momento2.reduce((a, b) => {
+            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
+            return a + (isNaN(nota) ? 1 : nota);
+          }, 0);
+          promedioMomento2 = sumaNotas2 / notas.momento2.length;
+          
+          // Sumar puntos extras del momento 2 si existen
+          const puntosExtra2 = puntosExtrasMomento2[alumnoId] || 0;
+          promedioMomento2 += puntosExtra2;
+          
+          // Limitar a 20 puntos máximo
+          promedioMomento2 = Math.min(20, promedioMomento2);
+        } else {
+          promedioMomento2 = 1;
+        }
+
+        // Calcular promedio del tercer momento
+        let promedioMomento3;
+        if (notas.momento3.length > 0) {
+          const sumaNotas3 = notas.momento3.reduce((a, b) => {
+            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
+            return a + (isNaN(nota) ? 1 : nota);
+          }, 0);
+          promedioMomento3 = sumaNotas3 / notas.momento3.length;
+          
+          // Sumar puntos extras del momento 3 si existen
+          const puntosExtra3 = puntosExtrasMomento3[alumnoId] || 0;
+          promedioMomento3 += puntosExtra3;
+          
+          // Limitar a 20 puntos máximo
+          promedioMomento3 = Math.min(20, promedioMomento3);
+        } else {
+          promedioMomento3 = 1;
+        }
+        
+        if (!calificacionesPorMateria[alumnoId]) {
+          calificacionesPorMateria[alumnoId] = [];
+        }
+        
+        // Calcular calificación final según el momento
+        let calificacionFinal;
+        if (momento === 3) {
+          calificacionFinal = (promedioMomento1 + promedioMomento2 + promedioMomento3) / 3;
+        } else if (momento === 2) {
+          calificacionFinal = (promedioMomento1 + promedioMomento2) / 2;
+        } else {
+          calificacionFinal = promedioMomento1;
+        }
+        
+        // Limitar la calificación final a 20 puntos máximo
+        calificacionFinal = Math.min(20, calificacionFinal);
+        
+        calificacionesPorMateria[alumnoId].push({
+          materia: materia.nombre,
+          momento1: promedioMomento1,
+          momento2: promedioMomento2,
+          momento3: promedioMomento3,
+          puntosExtra1: puntosExtrasMomento1[alumnoId] || 0, // Puntos extras del momento 1
+          puntosExtra2: puntosExtrasMomento2[alumnoId] || 0, // Puntos extras del momento 2
+          puntosExtra3: puntosExtrasMomento3[alumnoId] || 0, // Puntos extras del momento 3
+          calificacion: calificacionFinal
+        });
+      });
+    });
+
+    // Filtrar estudiantes si se especificó un ID
+    const estudiantesFiltrados = studentId ? 
+      estudiantesAula.filter(est => est._id.toString() === studentId) : 
+      estudiantesAula;
+
+    // Si no hay actividades, agregar N/A para todos los estudiantes
+    if (!asignaciones || asignaciones.length === 0) {
+      estudiantesAula.forEach(estudiante => {
+        const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
+        if (!calificacionesPorMateria[estudianteId]) {
+          calificacionesPorMateria[estudianteId] = [];
+        }
+        calificacionesPorMateria[estudianteId].push({
+          materia: 'Sin materias asignadas',
+          momento1: 1,
+          momento2: 1,
+          calificacion: 1, // Agregar N/A como 1
+          tipoCalificacion: 'numerica'
+        });
+      });
+    }
+
+    if (Object.keys(calificacionesPorMateria).length === 0) {
+      return NextResponse.json({
+        success: false,
+        error: 'No se encontraron calificaciones para este momento'
+      }, { status: 404 });
+    }
+
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    await dbConnection.connectDB();
+    
+    // Generar el reporte
+    const reporte = {
+      aula: {
+        nombre: aulaData.nombre,
+        anio: aulaData.anio,
+        seccion: aulaData.seccion,
+        turno: aulaData.turno,
+        periodo: aulaData.periodo || 'N/D' // Agregar el período académico
+      },
+      momento,
+      estudiantes: await Promise.all(estudiantesFiltrados.map(async estudiante => {
+        const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
+        const calificacionesEstudiante = calificacionesPorMateria[estudianteId] || [];
+        
+        // Buscar la información completa del estudiante en la colección Estudiante
+        let cedula = 'N/D';
+        let representante = null;
+        try {
+          // Buscar el estudiante en la colección usando el _id
+          const estudianteInfo = await Estudiante.findById(estudianteId);
+          if (estudianteInfo) {
+            // Si existe el estudiante, obtener su cédula (idU) y datos del representante
+            cedula = estudianteInfo.idU || 'N/D';
+            representante = estudianteInfo.representante || null;
+            // Corregir posibles des-sincronizaciones tomando nombre/apellido desde la colección Estudiante
+            if (estudianteInfo.nombre) {
+              estudiante.nombre = estudianteInfo.nombre;
+            }
+            if (estudianteInfo.apellido || estudianteInfo.apellidos) {
+              estudiante.apellido = estudianteInfo.apellido || estudianteInfo.apellidos;
+            }
+          } else {
+            console.log(`No se encontró información para el estudiante ${estudianteId}`);
+          }
+        } catch (error) {
+          console.error(`Error al buscar la información del estudiante ${estudianteId}:`, error);
+        }
+        
+        return {
+          id: estudianteId,
+          nombre: estudiante.nombre,
+          apellido: estudiante.apellido,
+          cedula: cedula, // Añadir la cédula al objeto de retorno
+          representante: representante, // Añadir datos del representante
+          calificaciones: calificacionesEstudiante
+        };
+      }))
+    };
+
+    // Ordenar estudiantes por cédula de menor a mayor (ascendente)
+    reporte.estudiantes.sort((a, b) => {
+      const cedulaA = a.cedula || 'N/D';
+      const cedulaB = b.cedula || 'N/D';
+      return cedulaA.localeCompare(cedulaB, undefined, { numeric: true });
+    });
+
+    // Generar el PDF
+    const pdfDoc = await PDFDocument.create();
+    const helveticaFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const helveticaBoldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+
+    // Configuración básica de la página
+    const margin = 50;
+    const fontSize = 9;
+    const titleSize = 18;
+    const headerSize = 10;
+    const rowHeight = 20;
+    
+    // Colores según el modelo
+    const azulOscuro = rgb(0.0, 0.29, 0.61); // Color azul del modelo
+    const grisOscuro = rgb(0.3, 0.3, 0.3);
+    const grisClaro = rgb(0.85, 0.85, 0.85);
+    const blanco = rgb(1, 1, 1);
+    const verde = rgb(0.0, 0.5, 0.0);
+    const negro = rgb(0, 0, 0);
+    
+    // Cargar logo con manejo de errores
+    const logoUrl = 'https://i.imgur.com/uopht0t.png';
+    let logoImage;
+    try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000);
+      
+      const logoResponse = await fetch(logoUrl, { 
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        }
+      });
+      clearTimeout(timeoutId);
+      
+      const logoImageBytes = await logoResponse.arrayBuffer();
+      logoImage = await pdfDoc.embedPng(logoImageBytes);
+    } catch (error) {
+      console.error('Error al cargar el logo:', error);
+      logoImage = null;
+    }
+
+    // Generar una página por cada estudiante
+    reporte.estudiantes.forEach((estudiante, estudianteIndex) => {
+      const currentPage = pdfDoc.addPage([595, 842]); // Tamaño A4
+      const { width: pageWidth, height: pageHeight } = currentPage.getSize();
+      const contentWidth = pageWidth - 2 * margin;
+      let yPosition = pageHeight - margin;
+
+      // ========== ENCABEZADO ==========
+      // Logo (izquierda) - MÁS GRANDE
+      if (logoImage) {
+        const logoWidth = 120; // Aumentado a 120 para hacerlo aún más grande
+        const logoHeight = logoWidth * (logoImage.height / logoImage.width);
+        currentPage.drawImage(logoImage, {
+          x: margin,
+          y: yPosition - logoHeight,
+          width: logoWidth,
+          height: logoHeight
+        });
+      }
+
+      // Título "BOLETIN DE NOTAS" (derecha del logo)
+      const titleText = 'BOLETIN DE NOTAS';
+      const titleWidth = helveticaBoldFont.widthOfTextAtSize(titleText, titleSize);
+      currentPage.drawText(titleText, {
+        x: pageWidth - margin - titleWidth,
+        y: yPosition - 25,
+        size: titleSize,
+        font: helveticaBoldFont,
+        color: azulOscuro
+      });
+
+      yPosition -= 80;
+
+      // ========== LÍNEA SEPARADORA SUPERIOR ==========
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 1.5,
+        color: azulOscuro
+      });
+
+      yPosition -= 18;
+
+      // Eliminado: bloque de representante aquí para moverlo debajo de los datos del estudiante
+
+      // ========== INFORMACIÓN DEL AULA ==========
+      // Primera línea: Año y Sección
+      // Extraer el número del año (ej: "1 año" -> "1")
+      const anioNumero = reporte.aula.anio.toString().replace(/[^\d]/g, '').trim() || reporte.aula.anio;
+      currentPage.drawText(`Año: ${anioNumero}° Año`, {
+        x: margin,
+        y: yPosition,
+        size: headerSize,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      currentPage.drawText(`Sección: ${reporte.aula.seccion}`, {
+        x: pageWidth - margin - 150,
+        y: yPosition,
+        size: headerSize,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      yPosition -= 16;
+
+      // Segunda línea: Año Escolar
+      currentPage.drawText(`Año Escolar: ${reporte.aula.periodo}`, {
+        x: margin,
+        y: yPosition,
+        size: headerSize,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      yPosition -= 20;
+
+      // ========== LÍNEA SEPARADORA ==========
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 1.5,
+        color: azulOscuro
+      });
+
+      yPosition -= 30;
+
+      // ========== NOMBRE DEL ESTUDIANTE Y CÉDULA ==========
+      currentPage.drawText(`Estudiante:`, {
+        x: margin,
+        y: yPosition,
+        size: headerSize,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      currentPage.drawText(`${estudiante.nombre} ${estudiante.apellido}`, {
+        x: margin + 80,
+        y: yPosition,
+        size: headerSize,
+        font: helveticaFont,
+        color: negro
+      });
+
+      yPosition -= 18;
+
+      currentPage.drawText(`CI: ${estudiante.cedula || 'N/D'}`, {
+        x: margin + 80,
+        y: yPosition,
+        size: headerSize - 1,
+        font: helveticaFont,
+        color: grisOscuro
+      });
+
+      yPosition -= 30;
+
+      // ========== TABLA DE CALIFICACIONES ==========
+      const tablaInicioY = yPosition;
+      
+      // Encabezado de tabla con fondo azul
+      currentPage.drawRectangle({
+        x: margin,
+        y: yPosition - rowHeight,
+        width: contentWidth,
+        height: rowHeight,
+        color: azulOscuro
+      });
+
+      // Columnas con nueva distribución: Evaluaciones | 1M | 2M | 3M | Final
+      const colEvaluacionesX = margin + 10; // Evaluaciones (antes Materias)
+      const col1MX = pageWidth - margin - 250; // 1er M (movido más a la derecha para dar más espacio al nombre)
+      const col2MX = pageWidth - margin - 190; // 2do M
+      const col3MX = pageWidth - margin - 130; // 3er M
+      const colFinalX = pageWidth - margin - 50; // Final
+
+      // Encabezados en blanco
+      currentPage.drawText('Evaluaciones', {
+        x: colEvaluacionesX,
+        y: yPosition - 14,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: blanco
+      });
+
+      currentPage.drawText('1M', {
+        x: col1MX + 5,
+        y: yPosition - 14,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: blanco
+      });
+
+      currentPage.drawText('2M', {
+        x: col2MX + 5,
+        y: yPosition - 14,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: blanco
+      });
+
+      currentPage.drawText('3M', {
+        x: col3MX + 5,
+        y: yPosition - 14,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: blanco
+      });
+
+      currentPage.drawText('Final', {
+        x: colFinalX - 5,
+        y: yPosition - 14,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: blanco
+      });
+
+      yPosition -= rowHeight;
+
+      // ========== FILAS DE MATERIAS ==========
+      const calificaciones = estudiante.calificaciones || [];
+      let sumaTotalCalificaciones = 0;
+      let totalMaterias = 0;
+
+      // Función para normalizar el nombre de la materia
+      const normalizarNombreMateria = (nombreMateria) => {
+        if (!nombreMateria) return nombreMateria;
+        
+        const nombreLower = nombreMateria.toLowerCase().trim();
+        
+        // Normalizar "Orientación" a "Orientación y convivencia"
+        if (nombreLower.includes('orientacion') || nombreLower.includes('orientación')) {
+          return 'Orientación y convivencia';
+        }
+        
+        // Normalizar "Grupo y Participación" a "Participación en grupos de Creación, Recreación y Producción"
+        if (nombreLower.includes('grupo') && nombreLower.includes('participacion') || 
+            nombreLower.includes('grupo') && nombreLower.includes('participación') ||
+            nombreLower.includes('participacion') && nombreLower.includes('grupos') ||
+            nombreLower.includes('participación') && nombreLower.includes('grupos')) {
+          return 'Participación en grupos de Creación, Recreación y Producción';
+        }
+        
+        return nombreMateria;
+      };
+
+      calificaciones.forEach((calificacion, index) => {
+        // Fondo alternado
+        if (index % 2 === 0) {
+          currentPage.drawRectangle({
+            x: margin,
+            y: yPosition - rowHeight,
+            width: contentWidth,
+            height: rowHeight,
+            color: grisClaro
+          });
+        }
+
+        // Normalizar el nombre de la materia antes de mostrarla
+        let nombreMateriaNormalizado = normalizarNombreMateria(calificacion.materia);
+
+        // Calcular el ancho máximo disponible para el nombre de la materia
+        // Dejamos espacio hasta donde empieza la columna 1M (con un margen de seguridad)
+        const anchoMaximoNombre = col1MX - colEvaluacionesX - 10; // 10px de margen de seguridad
+        
+        // Tamaño de fuente para el nombre de la materia - empezar con el tamaño normal
+        let tamanoFuenteNombre = fontSize - 1;
+        
+        // Medir el ancho del texto con el tamaño de fuente actual
+        let anchoTexto = helveticaFont.widthOfTextAtSize(nombreMateriaNormalizado, tamanoFuenteNombre);
+        
+        // Si el texto es muy largo, reducir progresivamente el tamaño de fuente hasta que quepa
+        // Reducir hasta un mínimo de 6pt para mantener legibilidad
+        const tamanoMinimo = 6;
+        while (anchoTexto > anchoMaximoNombre && tamanoFuenteNombre > tamanoMinimo) {
+          tamanoFuenteNombre -= 0.5; // Reducir en 0.5pt cada vez
+          anchoTexto = helveticaFont.widthOfTextAtSize(nombreMateriaNormalizado, tamanoFuenteNombre);
+        }
+        
+        // Si aún no cabe con el tamaño mínimo, usar el tamaño mínimo de todas formas
+        // (mejor mostrar texto pequeño que truncado)
+        if (anchoTexto > anchoMaximoNombre && tamanoFuenteNombre <= tamanoMinimo) {
+          tamanoFuenteNombre = tamanoMinimo;
+        }
+
+        // Nombre de la materia (en columna "Evaluaciones") con ancho máximo
+        currentPage.drawText(nombreMateriaNormalizado, {
+          x: colEvaluacionesX,
+          y: yPosition - 14,
+          size: tamanoFuenteNombre,
+          font: helveticaFont,
+          color: negro
+        });
+
+        // Nota 1er Momento (siempre mostrar)
+        let nota1 = '';
+        if (calificacion.momento1) {
+          if (calificacion.materia === 'Orientación y convivencia' || calificacion.materia === 'Orientación' || calificacion.materia === 'Participación en grupos de Creación, Recreación y Producción' || calificacion.materia === 'Grupo y Participación') {
+            nota1 = convertirNotaAlfabetica(calificacion.momento1);
+          } else {
+            nota1 = Math.round(calificacion.momento1).toString();
+          }
+        }
+        currentPage.drawText(nota1, {
+          x: col1MX + 10,
+          y: yPosition - 14,
+          size: fontSize - 1,
+          font: helveticaFont,
+          color: negro
+        });
+
+        // Nota 2do Momento (mostrar "-" si el boletín es del 1er momento o no hay nota)
+        let nota2 = '-';
+        if (reporte.momento >= 2 && calificacion.momento2) {
+          if (calificacion.materia === 'Orientación y convivencia' || calificacion.materia === 'Orientación' || calificacion.materia === 'Participación en grupos de Creación, Recreación y Producción' || calificacion.materia === 'Grupo y Participación') {
+            nota2 = convertirNotaAlfabetica(calificacion.momento2);
+          } else {
+            nota2 = Math.round(calificacion.momento2).toString();
+          }
+        }
+        currentPage.drawText(nota2, {
+          x: col2MX + 10,
+          y: yPosition - 14,
+          size: fontSize - 1,
+          font: helveticaFont,
+          color: negro
+        });
+
+        // Nota 3er Momento (mostrar "-" si el boletín es del 1er o 2do momento o no hay nota)
+        let nota3 = '-';
+        if (reporte.momento === 3 && calificacion.momento3) {
+          if (calificacion.materia === 'Orientación y convivencia' || calificacion.materia === 'Orientación' || calificacion.materia === 'Participación en grupos de Creación, Recreación y Producción' || calificacion.materia === 'Grupo y Participación') {
+            nota3 = convertirNotaAlfabetica(calificacion.momento3);
+          } else {
+            nota3 = Math.round(calificacion.momento3).toString();
+          }
+        }
+        currentPage.drawText(nota3, {
+          x: col3MX + 10,
+          y: yPosition - 14,
+          size: fontSize - 1,
+          font: helveticaFont,
+          color: negro
+        });
+
+        // Calificación Final (mostrar "-" si no es momento 3)
+        let notaFinal = '-';
+        let colorNota = negro;
+        
+        if (reporte.momento === 3 && calificacion.calificacion !== undefined) {
+          if (calificacion.materia === 'Orientación y convivencia' || calificacion.materia === 'Orientación' || calificacion.materia === 'Participación en grupos de Creación, Recreación y Producción' || calificacion.materia === 'Grupo y Participación') {
+            notaFinal = convertirNotaAlfabetica(calificacion.calificacion);
+          } else {
+            notaFinal = Math.round(calificacion.calificacion).toString();
+          }
+          
+          colorNota = calificacion.calificacion < 10 ? rgb(0.8, 0, 0) : verde;
+
+          // Acumular para promedio
+          if (!isNaN(calificacion.calificacion) && 
+              calificacion.materia !== 'Orientación y convivencia' && 
+              calificacion.materia !== 'Orientación' && 
+              calificacion.materia !== 'Participación en grupos de Creación, Recreación y Producción' && 
+              calificacion.materia !== 'Grupo y Participación') {
+            sumaTotalCalificaciones += calificacion.calificacion;
+            totalMaterias++;
+          }
+        }
+        
+        currentPage.drawText(notaFinal, {
+          x: colFinalX,
+          y: yPosition - 14,
+          size: fontSize - 1,
+          font: helveticaBoldFont,
+          color: colorNota
+        });
+
+        yPosition -= rowHeight;
+      });
+
+      // ========== LÍNEA SEPARADORA ANTES DEL PROMEDIO ==========
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 1,
+        color: azulOscuro
+      });
+
+      yPosition -= 25;
+
+      // ========== PROMEDIO FINAL ==========
+      // Ocultado temporalmente - no se muestra el promedio final
+      // const promedioFinal = totalMaterias > 0 ? Math.round(sumaTotalCalificaciones / totalMaterias).toString() : '0';
+      // const colorPromedio = parseInt(promedioFinal) < 10 ? rgb(0.8, 0, 0) : verde;
+
+      // currentPage.drawText('PROMEDIO FINAL:', {
+      //   x: pageWidth - margin - 250,
+      //   y: yPosition,
+      //   size: headerSize + 2,
+      //   font: helveticaBoldFont,
+      //   color: negro
+      // });
+
+      // currentPage.drawText(promedioFinal, {
+      //   x: pageWidth - margin - 70,
+      //   y: yPosition,
+      //   size: headerSize + 2,
+      //   font: helveticaBoldFont,
+      //   color: colorPromedio
+      // });
+
+      // yPosition -= 30;
+
+      // ========== ÁREA SOMBREADA CON COMENTARIOS ==========
+      const areaComentariosY = yPosition;
+      const alturaAreaComentarios = 160;
+      
+      // Fondo azul claro para toda el área de comentarios
+      currentPage.drawRectangle({
+        x: margin,
+        y: areaComentariosY - alturaAreaComentarios,
+        width: contentWidth,
+        height: alturaAreaComentarios,
+        color: rgb(0.85, 0.9, 0.95) // Azul muy claro
+      });
+
+      // Borde del área de comentarios
+      currentPage.drawRectangle({
+        x: margin,
+        y: areaComentariosY - alturaAreaComentarios,
+        width: contentWidth,
+        height: alturaAreaComentarios,
+        borderColor: azulOscuro,
+        borderWidth: 1
+      });
+
+      yPosition -= 20;
+
+      // Título "Comentarios para el Estudiante"
+      currentPage.drawText('Comentarios para el Estudiante', {
+        x: margin + 10,
+        y: yPosition,
+        size: fontSize,
+        font: helveticaBoldFont,
+        color: azulOscuro
+      });
+
+      yPosition -= 50;
+
+      // Línea divisoria horizontal
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 0.5,
+        color: azulOscuro
+      });
+
+      yPosition -= 20;
+
+      // Fila con Ausencias Justificadas, Ausencias No Justificadas y Sello
+      const col1Width = (contentWidth - 20) / 3;
+      const col2Width = (contentWidth - 20) / 3;
+      const col3Width = (contentWidth - 20) / 3;
+
+      // Ausencias Justificadas
+      currentPage.drawText('Ausencias Justificadas:', {
+        x: margin + 10,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      // Línea vertical divisoria 1
+      currentPage.drawLine({
+        start: { x: margin + col1Width, y: yPosition + 15 },
+        end: { x: margin + col1Width, y: yPosition - 30 },
+        thickness: 0.5,
+        color: azulOscuro
+      });
+
+      // Ausencias No Justificadas
+      currentPage.drawText('Ausencias no Justificadas:', {
+        x: margin + col1Width + 10,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      // Línea vertical divisoria 2
+      currentPage.drawLine({
+        start: { x: margin + col1Width + col2Width, y: yPosition + 15 },
+        end: { x: margin + col1Width + col2Width, y: yPosition - 30 },
+        thickness: 0.5,
+        color: azulOscuro
+      });
+
+      // Sello de la Institución
+      currentPage.drawText('Sello de la Institución', {
+        x: margin + col1Width + col2Width + 40,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      yPosition -= 45;
+
+      // Línea divisoria horizontal
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 0.5,
+        color: azulOscuro
+      });
+
+      yPosition -= 20;
+
+      // Retrasos
+      currentPage.drawText('Retrasos:', {
+        x: margin + 10,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      yPosition -= 30;
+
+      // Línea divisoria horizontal
+      currentPage.drawLine({
+        start: { x: margin, y: yPosition },
+        end: { x: pageWidth - margin, y: yPosition },
+        thickness: 0.5,
+        color: azulOscuro
+      });
+
+      yPosition -= 20;
+
+      // Firma del tutor/a
+      currentPage.drawText('Firma:', {
+        x: margin + 10,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      // Línea para la firma
+      const firmaLineY = yPosition - 5;
+      currentPage.drawLine({
+        start: { x: margin + 120, y: firmaLineY },
+        end: { x: margin + 300, y: firmaLineY },
+        thickness: 0.5,
+        color: negro
+      });
+    });
+
+    try {
+      // Generar el PDF final
+      const pdfBytes = await pdfDoc.save();
+
+      // Devolver el PDF como respuesta
+      return new NextResponse(pdfBytes, {
+        status: 200,
+        headers: {
+          'Content-Type': 'application/pdf',
+          'Content-Disposition': `attachment; filename=reporte-${reporte.aula.anio}-${reporte.aula.seccion}-momento${reporte.momento}.pdf`
+        }
+      });
+    } catch (error) {
+      console.error('Error al generar reporte:', error);
+      let errorMessage = 'Error al generar reporte';
+      let statusCode = 500;
+
+      if (error.code === 'MODULE_NOT_FOUND') {
+        errorMessage = 'Error: Falta una dependencia necesaria';
+      } else if (error.name === 'CastError') {
+        errorMessage = 'Error: ID de aula inválido';
+        statusCode = 400;
+      } else if (error.message) {
+        errorMessage = error.message;
+      }
+
+      return new NextResponse(JSON.stringify({ error: errorMessage }), {
+        status: statusCode,
+        headers: { 'Content-Type': 'application/json' }
+      });
+    }
+  } catch (error) {
+    console.error('Error al procesar request:', error);
+    return new NextResponse(JSON.stringify({ error: 'Error interno del servidor' }), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' }
+    });
+  }
+}

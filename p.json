@@ -1,0 +1,11 @@
+
+      {
+        "_id": "ObjectId('6810bf7d554c1bce2bbafdf38')",
+        "tipo": "control",
+        "idu": "20202020",
+        "password": "12345678",
+        "nombre": "César",
+        "apellido": "Arujó",
+        "fechaRegistro": "2025-04-28T15:57:25.284+00:00",
+        "idA": "1"
+      }

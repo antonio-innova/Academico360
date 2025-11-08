@@ -1,0 +1,930 @@
+.container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 30px;
+  background: var(--background);
+  min-height: 100vh;
+  font-family: 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  overflow-y: auto;
+}
+
+.header {
+  margin-bottom: 30px;
+  border-bottom: none;
+  padding: 25px 30px;
+  background-color: var(--background);
+  border-radius: 16px;
+  box-shadow: 0 10px 25px rgba(0, 105, 255, 0.12);
+  position: relative;
+  overflow: hidden;
+}
+
+.header::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  height: 4px;
+  width: 100%;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd);
+}
+
+.header h1 {
+  font-size: 2.4rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 15px;
+  position: relative;
+  background: linear-gradient(90deg, #2563eb, #3b82f6, #60a5fa);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: gradientFlow 8s ease infinite;
+}
+
+@keyframes gradientFlow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.header h1::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 60px;
+  height: 4px;
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+  border-radius: 2px;
+}
+
+.header h2 {
+  font-size: 1.5rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 5px;
+}
+
+.header h3 {
+  font-size: 1.25rem;
+  font-weight: 500;
+  color: var(--text-primary);
+  margin-bottom: 15px;
+}
+
+.headerButtons {
+  display: flex;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+.backButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  background-color: #f1f5f9;
+  color: #475569;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+  transition: all 0.2s ease;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.backButton:hover {
+  background-color: #e2e8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+.reportButton {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.2);
+}
+
+.reportButton:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px rgba(37, 99, 235, 0.25);
+}
+
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  max-height: calc(100vh - 200px);
+  overflow-y: auto;
+}
+
+.section {
+  background-color: var(--background);
+  border-radius: 16px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.06);
+  padding: 28px;
+  transition: all 0.3s ease;
+  border: none;
+  position: relative;
+  overflow: auto;
+  max-height: 800px;
+}
+
+.section::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 6px;
+  height: 100%;
+  background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+  border-top-left-radius: 16px;
+  border-bottom-left-radius: 16px;
+}
+
+.section:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+}
+
+.section h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.section h2::before {
+  content: '';
+  display: block;
+  width: 8px;
+  height: 24px;
+  background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+  border-radius: 4px;
+}
+
+.sectionHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 15px;
+}
+
+.botonesContainer {
+  display: flex;
+  flex-direction: row;
+  gap: 10px;
+}
+
+.momentoNavigation {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 25px;
+  flex-wrap: wrap;
+  justify-content: center;
+  padding: 10px 0;
+}
+
+.momentoButtonGroup {
+  display: flex;
+  align-items: center;
+}
+
+.momentoButton {
+  padding: 12px 24px;
+  background-color: #f8fafc;
+  border: none;
+  border-radius: 12px;
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: #64748b;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+  position: relative;
+  overflow: hidden;
+  z-index: 1;
+}
+
+.momentoButton:hover {
+  background-color: #f1f5f9;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+.momentoButton::before {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa);
+  transition: width 0.3s ease;
+  z-index: -1;
+}
+
+.momentoButton:hover::before {
+  width: 100%;
+}
+
+.activeMomento {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+}
+
+.activeMomento:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-2px);
+}
+
+/* Estilos para los botones de bloqueo/desbloqueo */
+.lockButton {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: 1px solid #ddd;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  margin-left: 5px;
+  font-size: 16px;
+  transition: all 0.2s ease;
+}
+
+.locked {
+  background-color: #f44336;
+  color: white;
+  border-color: #d32f2f;
+}
+
+.unlocked {
+  background-color: #4caf50;
+  color: white;
+  border-color: #388e3c;
+}
+
+.lockButton:hover {
+  transform: scale(1.05);
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+}
+
+/* Estilos para botones deshabilitados */
+.disabledButton {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background-color: #cccccc;
+  border-color: #aaaaaa;
+  color: #666666;
+}
+
+.disabledButton:hover {
+  transform: none;
+  box-shadow: none;
+  background-color: #cccccc;
+}
+
+/* Estilos para grupos de botones */
+.buttonGroup {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+}
+
+/* Estilos para botones de eliminación */
+.deleteButton {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #ef4444, #dc2626);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 5px rgba(239, 68, 68, 0.3);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.deleteButton:hover {
+  background: linear-gradient(135deg, #dc2626, #b91c1c);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(239, 68, 68, 0.4);
+}
+
+.momentTables {
+  display: flex;
+  flex-direction: column;
+  gap: 30px;
+  max-height: 700px;
+  overflow-y: auto;
+}
+
+.momentSection {
+  margin-bottom: 30px;
+}
+
+.momentTitle {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #333;
+  margin-bottom: 15px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid #e0e0e0;
+}
+
+.sectionHeader h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #2563eb;
+  position: relative;
+  padding-left: 15px;
+}
+
+.sectionHeader h2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 20px;
+  background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+  border-radius: 3px;
+}
+
+.toggleButton {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 16px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(37, 99, 235, 0.2);
+  margin-right: 12px;
+}
+
+.toggleButton:hover {
+  background: linear-gradient(135deg, #2563eb, #1d4ed8);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(37, 99, 235, 0.25);
+}
+
+.toggleButton svg {
+  width: 16px;
+  height: 16px;
+  transition: transform 0.3s ease;
+}
+
+/* Clase para la tabla oculta */
+.hidden {
+  display: none;
+}
+
+/* Clase para rotar el icono cuando la tabla está oculta */
+.rotateIcon {
+  transform: rotate(180deg);
+}
+
+.sectionHeader h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  color: #2563eb;
+  position: relative;
+  padding-left: 15px;
+}
+
+.sectionHeader h2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 20px;
+  background: linear-gradient(to bottom, #3b82f6, #60a5fa);
+  border-radius: 3px;
+}
+
+.addButton {
+  padding: 10px 18px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.9rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 6px rgba(5, 150, 105, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.addButton:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px rgba(5, 150, 105, 0.25);
+}
+
+.addButton::before {
+  content: '+';
+  font-size: 1.1rem;
+  font-weight: 700;
+}
+
+.table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin-bottom: 25px;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  overflow-x: auto;
+  display: block;
+  max-height: 600px;
+  overflow-y: auto;
+}
+
+.table th {
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  padding: 16px;
+  text-align: left;
+  font-weight: 600;
+  font-size: 0.9rem;
+  position: relative;
+  white-space: normal;
+  line-height: 1.2;
+  vertical-align: middle;
+  height: 60px;
+}
+
+/* Ajuste de anchos de columnas específicas */
+.table th:nth-child(1) { /* Cédula */
+  width: 12%;
+}
+
+.table th:nth-child(2) { /* Nombre */
+  width: 30%;
+}
+
+.table th:nth-child(3) { /* Edad */
+  width: 10%;
+}
+
+.table th:nth-child(4) { /* Es menor de edad */
+  width: 15%;
+}
+
+.table th:nth-child(5) { /* Estado */
+  width: 15%;
+}
+
+.table th:nth-child(6) { /* Acciones */
+  width: 18%;
+}
+
+.table td {
+  padding: 14px 16px;
+  color: var(--text-primary);
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.95rem;
+  transition: background-color 0.2s;
+  vertical-align: top;
+}
+
+/* Estilo para el nombre del estudiante */
+.table td:nth-child(2) {
+  white-space: normal;
+  line-height: 1.4;
+  word-wrap: break-word;
+}
+
+/* Estilo para la cédula */
+.table td:nth-child(1) {
+  font-family: monospace;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+}
+
+/* Ajuste para el texto de "Es menor de edad" */
+.table td:nth-child(4),
+.table th:nth-child(4) {
+  text-align: center;
+}
+
+/* Ajuste para el estado */
+.table td:nth-child(5),
+.table th:nth-child(5) {
+  text-align: center;
+}
+
+/* Ajuste para las acciones */
+.table td:nth-child(6),
+.table th:nth-child(6) {
+  text-align: center;
+}
+
+.table tr:hover td {
+  background-color: rgba(59, 130, 246, 0.05);
+}
+
+.editButton {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #3b82f6, #2563eb);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  margin-right: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.editButton:hover {
+  background-color: #2563eb;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(59, 130, 246, 0.25);
+}
+
+.calificacionButton {
+  padding: 8px 14px;
+  background: linear-gradient(135deg, #8b5cf6, #7c3aed);
+  color: white;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.calificacionButton:hover {
+  background-color: #7c3aed;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(139, 92, 246, 0.25);
+}
+
+.smallButton {
+  padding: 4px 8px;
+  background-color: #64748b;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  margin-left: 6px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  box-shadow: 0 2px 4px rgba(100, 116, 139, 0.2);
+}
+
+.smallButton:hover {
+  background-color: #475569;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(100, 116, 139, 0.25);
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(15, 23, 42, 0.7);
+  backdrop-filter: blur(4px);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+  animation: fadeIn 0.2s ease;
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.modalContent {
+  background: white;
+  border-radius: 16px;
+  padding: 30px;
+  width: 90%;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
+  position: relative;
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+  animation: slideUp 0.3s ease-out forwards;
+}
+
+.modalContent::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 4px;
+  background: linear-gradient(90deg, #3b82f6, #60a5fa, #93c5fd);
+}
+
+@keyframes slideUp {
+  from { transform: translateY(20px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+.modalContent h2 {
+  font-size: 1.4rem;
+  font-weight: 600;
+  color: #2563eb;
+  margin-bottom: 25px;
+  padding-bottom: 15px;
+  border-bottom: 2px solid #e0eaff;
+  position: relative;
+}
+
+.modalContent h2::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -2px;
+  width: 60px;
+  height: 2px;
+  background: linear-gradient(90deg, #2563eb, #60a5fa);
+}
+
+.formGroup {
+  margin-bottom: 20px;
+}
+
+.formGroup label {
+  display: block;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #334155;
+  margin-bottom: 6px;
+}
+
+.formGroup input,
+.formGroup textarea,
+.formGroup select {
+  width: 100%;
+  padding: 12px 16px;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  color: #334155;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.03);
+  background-color: #f8fafc;
+  outline: none;
+}
+
+.formGroup input:focus,
+.formGroup textarea:focus,
+.formGroup select:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.15);
+  background-color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.formGroup textarea {
+  resize: vertical;
+  min-height: 100px;
+}
+
+.modalButtons {
+  display: flex;
+  justify-content: flex-end;
+  gap: 12px;
+  margin-top: 30px;
+  padding-top: 20px;
+  border-top: 1px solid #e2e8f0;
+}
+
+.saveButton {
+  padding: 12px 24px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 6px 12px rgba(5, 150, 105, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.3px;
+}
+
+.saveButton:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 8px rgba(5, 150, 105, 0.25);
+}
+
+.cancelButton {
+  padding: 12px 24px;
+  background-color: #f8fafc;
+  color: #475569;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  letter-spacing: 0.3px;
+}
+
+.cancelButton:hover {
+  background-color: #e2e8f0;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.05);
+}
+
+/* Estilos para la vista previa de imagen */
+.imagenPreview {
+  margin-top: 10px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+  border: 1px solid #e2e8f0;
+  transition: all 0.2s ease;
+}
+
+.imagenPreview:hover {
+  transform: scale(1.02);
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.15);
+}
+
+/* Botón Guardar Puntos Extras */
+.guardarPuntosExtras {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white !important;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 10px 0;
+  min-width: 200px;
+}
+
+.guardarPuntosExtras:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+}
+
+.guardarPuntosExtras:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.botonGuardar {
+  padding: 10px 20px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: white !important;
+  border: none;
+  border-radius: 10px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.25);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin: 10px 0;
+  min-width: 200px;
+}
+
+.botonGuardar:hover {
+  background: linear-gradient(135deg, #059669, #047857);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 12px rgba(16, 185, 129, 0.3);
+}
+
+.botonGuardar:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(16, 185, 129, 0.2);
+}
+
+.botonGuardar:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+  background: linear-gradient(135deg, #9ca3af, #6b7280);
+  transform: none;
+  box-shadow: none;
+}
+
+/* Estilo para la barra de desplazamiento */
+.section::-webkit-scrollbar,
+.table::-webkit-scrollbar,
+.content::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.section::-webkit-scrollbar-track,
+.table::-webkit-scrollbar-track,
+.content::-webkit-scrollbar-track {
+  background: #f1f5f9;
+  border-radius: 10px;
+}
+
+.section::-webkit-scrollbar-thumb,
+.table::-webkit-scrollbar-thumb,
+.content::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+
+.section::-webkit-scrollbar-thumb:hover,
+.table::-webkit-scrollbar-thumb:hover,
+.content::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Estilo para el botón Eliminar con ícono */
+.eliminarBtn {
+  padding: 6px 12px;
+  background: linear-gradient(135deg, #ef4444, #b91c1c);
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 5px;
+  box-shadow: 0 2px 4px rgba(239, 68, 68, 0.25);
+}
+
+.eliminarBtn:hover {
+  background: linear-gradient(135deg, #dc2626, #991b1b);
+  transform: translateY(-1px);
+  box-shadow: 0 3px 5px rgba(239, 68, 68, 0.35);
+}

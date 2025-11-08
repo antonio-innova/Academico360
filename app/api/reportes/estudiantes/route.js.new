@@ -1,0 +1,462 @@
+import { NextResponse } from 'next/server';
+import mongoose from 'mongoose';
+
+// Usar require para la conexión a la base de datos (CommonJS)
+const dbConnection = require('../../../../database/db');
+
+// Usar import para los modelos (ESM)
+import Estudiante from '../../../../database/models/Estudiante';
+import Asignacion from '../../../../database/models/Asignacion';
+
+export async function GET(request) {
+  try {
+    // Asegurarse de que la conexión a la base de datos esté establecida
+    if (!dbConnection.isConnected()) {
+      console.log('Esperando conexión a MongoDB...');
+      await dbConnection.connectDB();
+      console.log('Conexión a MongoDB establecida');
+    }
+    
+    // Obtener parámetros de la URL
+    const { searchParams } = new URL(request.url);
+    const profesorId = searchParams.get('profesorId');
+    const materiaId = searchParams.get('materiaId');
+    const periodoId = searchParams.get('periodoId');
+    const tipoReporte = searchParams.get('tipoReporte') || 'estudiantes';
+    const idPrefix = searchParams.get('idPrefix') || 'idAA'; // Valor por defecto idAA para estudiantes
+    const creadorId = searchParams.get('creadorId');
+    
+    console.log(`Generando reporte de tipo: ${tipoReporte} con prefijo ID: ${idPrefix}`);
+    
+    // Inicializar variables para el reporte
+    let estudiantes = [];
+    let query = {};
+    // Declarar variables para el reporte CSV
+    let headers = [];
+    let rows = [];
+    
+    // Si hay un creadorId, filtrar por él
+    if (creadorId) {
+      query.userId = creadorId;
+    }
+    
+    // Determinar qué tipo de reporte generar
+    switch (tipoReporte) {
+      case 'todosDocentes':
+        // Reporte de todos los docentes (idAP)
+        console.log('Generando reporte de todos los docentes');
+        const Profesor = mongoose.models.Profesor || mongoose.model('Profesor', new mongoose.Schema({}));
+        estudiantes = await Profesor.find().lean();
+        break;
+        
+      case 'asignaciones':
+        // Reporte de todas las asignaciones (idAAS)
+        console.log('Generando reporte de todas las asignaciones');
+        estudiantes = await Asignacion.find().lean();
+        break;
+        
+      case 'todosEstudiantes':
+        // Reporte de todos los estudiantes (idAA)
+        console.log('Generando reporte de todos los estudiantes');
+        estudiantes = await Estudiante.find().lean();
+        break;
+        
+      case 'estudiantes':
+      default:
+        // Reporte de estudiantes filtrado (idAA)
+        console.log('Generando reporte de estudiantes filtrado');
+        // Obtener los estudiantes según los filtros básicos
+        estudiantes = await Estudiante.find(query).lean();
+        break;
+    }
+    
+    // Variable para almacenar el profesor encontrado (para usar en la generación del nombre del archivo)
+    let profesorEncontrado = null;
+    
+    // Si hay filtros adicionales (profesor, materia, periodo), necesitamos filtrar por asignaciones
+    if (profesorId || materiaId || periodoId) {
+      // Construir consulta para asignaciones
+      let asignacionQuery = {};
+      
+      if (profesorId) {
+        // Buscar al profesor por su cédula
+        console.log(`Buscando profesor con cédula: ${profesorId}`);
+        
+        try {
+          // Importar el modelo Profesor
+          const Profesor = mongoose.models.Profesor || mongoose.model('Profesor', new mongoose.Schema({}));
+          console.log('Modelo Profesor cargado correctamente');
+          
+          // Verificar la estructura de la colección Profesor
+          const profesorEjemplo = await Profesor.findOne().lean();
+          console.log('Ejemplo de profesor en la base de datos:', profesorEjemplo ? Object.keys(profesorEjemplo) : 'No se encontraron profesores');
+          
+          // Buscar el profesor por cualquier campo que pueda contener la cédula
+          console.log(`Buscando profesor con cédula/idU: ${profesorId}`);
+          const profesor = await Profesor.findOne({
+            $or: [
+              { idU: profesorId },
+              { cedula: profesorId },
+              { id: profesorId }
+            ]
+          }).lean();
+          console.log('Resultado de la búsqueda:', profesor ? `Profesor encontrado: ${profesor.nombre}` : 'Profesor no encontrado');
+          
+          if (profesor) {
+            // Guardar el profesor encontrado para usarlo más tarde
+            profesorEncontrado = profesor;
+            
+            console.log(`Profesor encontrado: ${profesor.nombre} ${profesor.apellido || ''}`);
+            console.log('ID del profesor:', profesor._id);
+            asignacionQuery.profesorId = profesor._id.toString();
+            console.log(`Filtrando por profesor ID: ${profesor._id}`);
+          } else {
+            console.log(`No se encontró profesor con cédula: ${profesorId}`);
+            console.log('Intentando buscar con otros campos...');
+            
+            // Intentar buscar por otros campos
+            const profesorPorNombre = await Profesor.findOne({ 
+              $or: [
+                { cedula: profesorId },
+                { idU: { $regex: profesorId, $options: 'i' } }
+              ]
+            }).lean();
+            
+            if (profesorPorNombre) {
+              profesorEncontrado = profesorPorNombre;
+              console.log(`Profesor encontrado por otros campos: ${profesorPorNombre.nombre}`);
+              asignacionQuery.profesorId = profesorPorNombre._id.toString();
+            } else {
+              // Si no se encuentra el profesor, devolver un array vacío
+              console.log('No se encontró el profesor por ningún campo');
+              return NextResponse.json({
+                success: true,
+                message: 'No se encontró el profesor especificado',
+                data: []
+              }, { status: 200 });
+            }
+          }
+        } catch (error) {
+          console.error('Error al buscar profesor:', error);
+          // Continuar con la ejecución aunque no se encuentre el profesor
+          console.log('Continuando sin filtrar por profesor debido al error');
+        }
+      }
+      
+      if (materiaId) {
+        asignacionQuery.materiaId = materiaId;
+        console.log(`Filtrando por materia ID: ${materiaId}`);
+      }
+      
+      if (periodoId) {
+        asignacionQuery.periodo = periodoId;
+        console.log(`Filtrando por periodo ID: ${periodoId}`);
+      }
+      
+      // Buscar asignaciones que coincidan con los criterios
+      console.log(`Buscando asignaciones con criterios:`, asignacionQuery);
+      const asignaciones = await Asignacion.find(asignacionQuery).lean();
+      console.log(`Asignaciones encontradas: ${asignaciones.length}`);
+      
+      // Array para almacenar la información completa de los estudiantes con sus datos de asignación
+      let estudiantesConInfo = [];
+      
+      if (asignaciones.length > 0) {
+        // Extraer información de estudiantes de las asignaciones
+        console.log('Revisando asignaciones para extraer alumnosInfo...');
+        
+        // Recorrer cada asignación
+        for (const asignacion of asignaciones) {
+          console.log(`Asignación: ${asignacion._id}, Materia: ${asignacion.materiaId}`);
+          
+          // Imprimir la estructura completa de la asignación para depurar
+          console.log('Estructura de la asignación:', Object.keys(asignacion));
+          
+          // Verificar todos los posibles nombres de arrays de estudiantes
+          const posiblesArrays = ['alumnosInfo', 'alumnos', 'estudiantesIds', 'estudiantes', 'alumnosData'];
+          posiblesArrays.forEach(arrayName => {
+            if (asignacion[arrayName]) {
+              console.log(`La asignación tiene el array ${arrayName} con ${Array.isArray(asignacion[arrayName]) ? asignacion[arrayName].length : 'no es array'} elementos`);
+              if (Array.isArray(asignacion[arrayName]) && asignacion[arrayName].length > 0) {
+                console.log(`Primer elemento de ${arrayName}:`, asignacion[arrayName][0]);
+              }
+            }
+          });
+          
+          // Intentar obtener el nombre de la materia
+          let nombreMateria = 'No especificado';
+          try {
+            if (asignacion.materiaId) {
+              // Importar el modelo Materia
+              const Materia = mongoose.models.Materia || mongoose.model('Materia', new mongoose.Schema({}));
+              const materia = await Materia.findById(asignacion.materiaId).lean();
+              if (materia) {
+                nombreMateria = materia.nombre || 'No especificado';
+              }
+            }
+          } catch (error) {
+            console.error('Error al obtener nombre de materia:', error);
+          }
+          
+          // Crear un mapa para almacenar calificaciones de estudiantes
+          const calificacionesMap = new Map();
+          
+          // Verificar si hay calificaciones en la asignación
+          if (asignacion.calificaciones && Array.isArray(asignacion.calificaciones)) {
+            console.log(`La asignación tiene ${asignacion.calificaciones.length} calificaciones`);
+            
+            // Recorrer las calificaciones y guardarlas en el mapa
+            asignacion.calificaciones.forEach(cal => {
+              if (cal.estudianteId && cal.valor) {
+                const idStr = typeof cal.estudianteId === 'object' ? cal.estudianteId.toString() : cal.estudianteId;
+                calificacionesMap.set(idStr, cal.valor);
+              }
+            });
+          }
+          
+          // Buscar estudiantes en todos los posibles arrays
+          for (const arrayName of posiblesArrays) {
+            const estudiantesArray = asignacion[arrayName];
+            
+            if (estudiantesArray) {
+              console.log(`Usando ${arrayName} como respaldo: ${estudiantesArray.length} IDs`);
+              
+              // Buscar los estudiantes por sus IDs
+              for (const estudianteId of estudiantesArray) {
+                // Convertir a string si es un ObjectId
+                const idStr = typeof estudianteId === 'object' && estudianteId !== null ? 
+                  (estudianteId.toString ? estudianteId.toString() : String(estudianteId)) : 
+                  String(estudianteId);
+                
+                console.log(`Buscando estudiante con ID: ${idStr}`);
+                
+                // Buscar en la colección de estudiantes
+                const estudiante = estudiantes.find(e => {
+                  const eId = e._id ? (typeof e._id === 'object' ? e._id.toString() : e._id) : null;
+                  return eId === idStr;
+                });
+                
+                if (estudiante) {
+                  // Obtener la calificación del mapa si existe
+                  const calificacion = calificacionesMap.has(idStr) ? calificacionesMap.get(idStr) : '';
+                  
+                  console.log(`Estudiante encontrado: ${estudiante.nombre}, Calificación: ${calificacion}`);
+                  estudiantesConInfo.push({
+                    id: estudiante._id,
+                    nombre: estudiante.nombre || '',
+                    apellido: estudiante.apellido || '',
+                    cedula: estudiante.cedula || estudiante.idU || '',
+                    correo: estudiante.correo || '',
+                    telefono: estudiante.telefono || '',
+                    menorEdad: estudiante.esMenorDeEdad || estudiante.menorEdad || false,
+                    materia: nombreMateria,
+                    profesor: profesorEncontrado ? `${profesorEncontrado.nombre} ${profesorEncontrado.apellido || ''}` : 'No especificado',
+                    periodo: asignacion.periodoId || asignacion.periodo || 'No especificado',
+                    calificacion: calificacion
+                  });
+                } else {
+                  console.log(`No se encontró estudiante con ID: ${idStr}`);
+                }
+              }
+            } else {
+              console.log('No se encontró ningún array de estudiantes en la asignación');
+            }
+          }
+        }
+        
+        console.log(`Total de estudiantes con información: ${estudiantesConInfo.length}`);
+        
+        // Reemplazar el array de estudiantes con la nueva información
+        estudiantes = estudiantesConInfo;
+      } else {
+        // Si no hay asignaciones, mantener los estudiantes originales
+        console.log('No se encontraron asignaciones, manteniendo estudiantes originales');
+      }
+      
+      console.log(`Despues del filtrado: ${estudiantes.length} estudiantes`);
+    }
+    
+    // Preparar los datos para el reporte CSV con un diseño mejorado según el tipo de reporte
+    // Reiniciar los arrays para el reporte
+    headers.length = 0;
+    rows.length = 0;
+    
+    // Definir encabezados y filas según el tipo de reporte
+    switch (tipoReporte) {
+      case 'todosDocentes':
+        // Encabezados para reporte de docentes
+        headers = [
+          'N', 'Cedula', 'Nombre', 'Apellido', 'Email', 'Telefono', 'Especialidad'
+        ];
+        
+        // Generar filas para docentes
+        rows = estudiantes.map((profesor, index) => {
+          // Agregar prefijo idAP a la cédula
+          const cedula = profesor.cedula || profesor.idU || '';
+          const cedulaConPrefijo = cedula ? `${idPrefix}-${cedula}` : '';
+          
+          return [
+            (index + 1).toString(),
+            cedulaConPrefijo,
+            profesor.nombre || '',
+            profesor.apellido || '',
+            profesor.email || '',
+            profesor.telefono || '',
+            profesor.especialidad || ''
+          ];
+        });
+        break;
+        
+      case 'asignaciones':
+        // Encabezados para reporte de asignaciones
+        headers = [
+          'N', 'ID', 'Materia', 'Profesor', 'Periodo', 'Estudiantes'
+        ];
+        
+        // Generar filas para asignaciones
+        rows = estudiantes.map((asignacion, index) => {
+          // Agregar prefijo idAAS al ID
+          const id = asignacion._id ? asignacion._id.toString() : '';
+          const idConPrefijo = id ? `${idPrefix}-${id}` : '';
+          
+          // Contar estudiantes asignados
+          let cantidadEstudiantes = 0;
+          if (asignacion.alumnos && Array.isArray(asignacion.alumnos)) {
+            cantidadEstudiantes = asignacion.alumnos.length;
+          } else if (asignacion.estudiantesIds && Array.isArray(asignacion.estudiantesIds)) {
+            cantidadEstudiantes = asignacion.estudiantesIds.length;
+          } else if (asignacion.alumnosInfo && Array.isArray(asignacion.alumnosInfo)) {
+            cantidadEstudiantes = asignacion.alumnosInfo.length;
+          }
+          
+          return [
+            (index + 1).toString(),
+            idConPrefijo,
+            asignacion.materiaId || '',
+            asignacion.profesorId || '',
+            asignacion.periodoId || asignacion.periodo || '',
+            cantidadEstudiantes.toString()
+          ];
+        });
+        break;
+        
+      case 'todosEstudiantes':
+      case 'estudiantes':
+      default:
+        // Encabezados para reporte de estudiantes basados en la estructura de MongoDB
+        headers = [
+          'Cedula', 'Nombre', 'Fecha Nacimiento', 'Es Menor de Edad'
+        ];
+        
+        console.log('Estructura de un estudiante para el CSV:', estudiantes.length > 0 ? Object.keys(estudiantes[0]) : 'No hay estudiantes');
+        
+        // Generar filas para estudiantes
+        rows = estudiantes.map((estudiante) => {
+          // Obtener la cédula del estudiante con el prefijo
+          const cedula = estudiante.idU || '';
+          const cedulaConPrefijo = cedula ? `${idPrefix}-${cedula}` : '';
+          
+          // Formatear fechas
+          const fechaNacimiento = estudiante.fechaNacimiento ? new Date(estudiante.fechaNacimiento).toISOString().split('T')[0] : '';
+          
+          // Convertir valores booleanos a texto
+          const esMenorEdad = estudiante.esMenorDeEdad === true ? 'Si' : 'No';
+          
+          return [
+            cedulaConPrefijo,
+            estudiante.nombre || '',
+            fechaNacimiento,
+            esMenorEdad
+          ];
+        });
+        break;
+    }
+    
+    // Función para formatear campos para Excel
+    const formatExcelField = (field) => {
+      if (field === null || field === undefined) {
+        return '';
+      }
+      
+      const stringField = String(field).trim();
+      
+      // Siempre encerrar en comillas para asegurar que Excel lo interprete como una celda
+      return `"${stringField.replace(/"/g, '""')}"`;
+    };
+    
+    // No eliminar duplicados, ya que queremos mostrar todas las ocurrencias
+    // de un alumno en diferentes períodos o con diferentes calificaciones
+    console.log(`Total de filas para el CSV: ${rows.length}`);
+    
+    // No eliminar duplicados, queremos mostrar todas las ocurrencias
+    console.log(`Total de filas para el CSV: ${rows.length}`);
+    
+    // Ordenar las filas por cédula y luego por período para mejor organización
+    rows.sort((a, b) => {
+      // Primero ordenar por cédula (columna 1)
+      if (a[1] !== b[1]) {
+        return a[1].localeCompare(b[1]);
+      }
+      // Luego ordenar por período (columna 5)
+      if (a.length > 5 && b.length > 5) {
+        return a[5].localeCompare(b[5]);
+      }
+      return 0;
+    });
+    
+    // Aplicar formato especial para Excel
+    const rowsFormateadas = rows.map(row => row.map(formatExcelField));
+    
+    // Generar el contenido CSV optimizado para Excel usando punto y coma como separador
+    const csvContent = [
+      // Encabezados formateados
+      headers.map(formatExcelField).join(';'),
+      // Filas formateadas
+      ...rowsFormateadas.map(row => row.join(';'))
+    ].join('\r\n'); // Usar CRLF para mejor compatibilidad con Excel
+    
+    // Generar nombre del archivo CSV
+    let nombreArchivo = 'Reporte_Estudiantes.csv';
+    
+    // Personalizar el nombre del archivo según los filtros aplicados
+    if (profesorId || materiaId || periodoId) {
+      const partes = ['Reporte_Estudiantes'];
+      
+      // Si se filtro por profesor, incluir su nombre en el archivo
+      if (profesorId) {
+        // Usar el profesor que ya encontramos anteriormente
+        if (profesorEncontrado) {
+          // Limpiar el nombre para usarlo en el nombre del archivo (quitar espacios)
+          const nombreLimpio = profesorEncontrado.nombre.replace(/\s+/g, '_');
+          partes.push(`Profesor_${nombreLimpio}`);
+        } else {
+          partes.push(`Profesor_Cedula_${profesorId}`);
+        }
+      }
+      
+      if (materiaId) partes.push('Materia');
+      if (periodoId) partes.push('Periodo');
+      
+      nombreArchivo = `${partes.join('_')}.csv`;
+    }
+    
+    console.log(`Generando archivo CSV: ${nombreArchivo}`);
+    console.log(`Total de estudiantes en el reporte: ${estudiantes.length}`);
+    
+    // Devolver el archivo CSV como respuesta
+    return new NextResponse(csvContent, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/csv; charset=utf-8; sep=;',
+        'Content-Disposition': `attachment; filename="${nombreArchivo}"`
+      }
+    });
+    
+  } catch (error) {
+    console.error('Error al generar reporte:', error);
+    return NextResponse.json(
+      { error: 'Error al generar reporte', message: error.message },
+      { status: 500 }
+    );
+  }
+}

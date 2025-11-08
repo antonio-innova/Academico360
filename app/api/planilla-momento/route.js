@@ -1,0 +1,236 @@
+import { NextResponse } from 'next/server';
+import { connectDB } from '../../../database/db';
+import Aula from '../../../database/models/Aula';
+import Estudiante from '../../../database/models/Estudiante';
+import * as XLSX from 'xlsx';
+
+export async function GET(request) {
+  try {
+    console.log('🚀 INICIO - Endpoint planilla-momento llamado');
+    await connectDB();
+    console.log('🚀 Base de datos conectada');
+
+    const { searchParams } = new URL(request.url);
+    const aulaId = searchParams.get('aulaId');
+    const materiaId = searchParams.get('materiaId');
+    const momento = parseInt(searchParams.get('momento')) || 1;
+
+    console.log('🚀 Parámetros recibidos:', { aulaId, materiaId, momento });
+
+    if (!aulaId || !materiaId) {
+      console.log('🚀 ERROR: Faltan parámetros requeridos');
+      return NextResponse.json({
+        success: false,
+        message: 'aulaId y materiaId son requeridos'
+      }, { status: 400 });
+    }
+
+    console.log(`🚀 Generando planilla para aula: ${aulaId}, materia: ${materiaId}, momento: ${momento}`);
+
+    // Obtener el aula con sus asignaciones
+    const aula = await Aula.findById(aulaId).exec();
+
+    console.log('🚀 Aula encontrada:', aula ? 'SÍ' : 'NO');
+    if (!aula) {
+      console.log('🚀 ERROR: Aula no encontrada');
+      return NextResponse.json({
+        success: false,
+        message: 'Aula no encontrada'
+      }, { status: 404 });
+    }
+
+    // Encontrar la asignación de la materia
+    console.log('🚀 Buscando asignación para materia:', materiaId);
+    console.log('🚀 Asignaciones disponibles:', aula.asignaciones?.map(a => ({ 
+      id: a.materia?.id, 
+      nombre: a.materia?.nombre,
+      profesor: a.profesor 
+    })));
+    
+    const asignacion = aula.asignaciones.find(a => a.materia.id === materiaId);
+    console.log('🚀 Asignación encontrada:', asignacion ? 'SÍ' : 'NO');
+    
+    if (!asignacion) {
+      console.log('🚀 ERROR: Materia no encontrada en el aula');
+      return NextResponse.json({
+        success: false,
+        message: 'Materia no encontrada en el aula'
+      }, { status: 404 });
+    }
+
+    // Obtener actividades del momento específico
+    console.log('🚀 Actividades totales:', asignacion.actividades?.length || 0);
+    const actividadesMomento = asignacion.actividades.filter(act => act.momento === momento);
+    console.log(`🚀 Actividades del momento ${momento}:`, actividadesMomento.length);
+    
+    // Obtener datos completos de los estudiantes ordenados por cédula
+    const estudiantesCompletos = await Promise.all(
+      aula.alumnos.map(async (alumno) => {
+        try {
+          const estudiante = await Estudiante.findById(alumno._id);
+          return {
+            ...alumno.toObject(),
+            cedulaReal: estudiante?.idU || estudiante?.cedula || 'N/P',
+            nombreCompleto: `${estudiante?.apellido || alumno.apellido || ''} ${estudiante?.nombre || alumno.nombre || ''}`.trim()
+          };
+        } catch (error) {
+          return {
+            ...alumno.toObject(),
+            cedulaReal: 'N/P',
+            nombreCompleto: `${alumno.apellido || ''} ${alumno.nombre || ''}`.trim()
+          };
+        }
+      })
+    );
+
+    // Ordenar estudiantes por cédula
+    const estudiantesOrdenados = estudiantesCompletos.sort((a, b) => {
+      const cedulaA = String(a.cedulaReal || '').trim();
+      const cedulaB = String(b.cedulaReal || '').trim();
+      
+      if (cedulaA === 'N/P' || cedulaA === '') return 1;
+      if (cedulaB === 'N/P' || cedulaB === '') return -1;
+      
+      const numA = parseInt(cedulaA.replace(/\D/g, ''), 10);
+      const numB = parseInt(cedulaB.replace(/\D/g, ''), 10);
+      
+      if (!isNaN(numA) && !isNaN(numB)) {
+        return numA - numB;
+      }
+      
+      return cedulaA.localeCompare(cedulaB);
+    });
+
+    // Crear el workbook
+    const wb = XLSX.utils.book_new();
+
+    // Crear encabezados con información real
+    const nombreAula = `${aula.anio}° AÑO "${aula.seccion}"`;
+    const nombreMateria = asignacion.materia?.nombre || 'MATERIA';
+    const nombreDocente = asignacion.profesor ? 
+      `${asignacion.profesor.nombre || ''} ${asignacion.profesor.apellido || ''}`.trim() || 'DOCENTE' : 
+      'DOCENTE';
+    
+    console.log('🚀 Información para planilla:', {
+      nombreAula,
+      nombreMateria,
+      nombreDocente,
+      profesor: asignacion.profesor
+    });
+    
+    // Preparar nombres de actividades (máximo 6)
+    const nombresActividades = [];
+    const maxActividades = 6;
+    for (let i = 0; i < maxActividades; i++) {
+      if (i < actividadesMomento.length) {
+        nombresActividades.push(actividadesMomento[i].nombre);
+      } else {
+        nombresActividades.push('');
+      }
+    }
+
+    const headers = [
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['', nombreAula, '', '', '', `${momento}° MOMENTO`, '', '', '', '', '', '', '', ''],
+      ['', 'COLEGIO LAS ACACIAS', '', '', '', 'ÁREA DE APRENDIZAJE:', '', '', '', '', '', '', '', ''],
+      ['', 'CURSO ACADÉMICO:', '', '', '', nombreMateria, '', '', '', '', '', '', '', ''],
+      ['', '2025-2026', '', '', '', 'DOCENTE:', '', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', nombreDocente, '', '', '', '', '', '', '', ''],
+      ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
+      ['N°', 'CÉDULA', 'APELLIDOS Y NOMBRES', '', '', ...nombresActividades]
+    ];
+
+    // Crear filas de datos
+    const filas = estudiantesOrdenados.map((estudiante, index) => {
+      const fila = [
+        index + 1,
+        estudiante.cedulaReal,
+        estudiante.nombreCompleto,
+        '', // Columna vacía para separación
+        '', // Columna vacía para separación
+      ];
+
+      // Agregar calificaciones de cada actividad (máximo 6 columnas)
+      const maxActividades = 6;
+      for (let i = 0; i < maxActividades; i++) {
+        if (i < actividadesMomento.length) {
+          const actividad = actividadesMomento[i];
+          const calificacion = actividad.calificaciones?.find(c => 
+            c.alumnoId === estudiante._id.toString()
+          );
+          const nota = calificacion?.nota;
+          fila.push(nota || '');
+        } else {
+          fila.push(''); // Columna vacía si no hay más actividades
+        }
+      }
+
+      return fila;
+    });
+
+    // Combinar encabezados y datos
+    const wsData = [...headers, ...filas];
+
+    // Crear la hoja de trabajo
+    const ws = XLSX.utils.aoa_to_sheet(wsData);
+
+    // Configurar anchos de columna (sin promedio ni observaciones)
+    const colWidths = [
+      { wch: 5 },   // N°
+      { wch: 12 },  // CÉDULA
+      { wch: 35 },  // APELLIDOS Y NOMBRES
+      { wch: 4 },   // Separación
+      { wch: 4 },   // Separación
+      { wch: 18 },  // Actividad 1 (más ancho para que el nombre sea legible)
+      { wch: 18 },  // Actividad 2
+      { wch: 18 },  // Actividad 3
+      { wch: 18 },  // Actividad 4
+      { wch: 18 },  // Actividad 5
+      { wch: 18 }   // Actividad 6
+    ];
+    ws['!cols'] = colWidths;
+
+    // Configurar combinación de celdas para el encabezado
+    ws['!merges'] = [
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 4 } }, // Nombre del aula
+      { s: { r: 3, c: 1 }, e: { r: 3, c: 4 } }, // "COLEGIO LAS ACACIAS"
+      { s: { r: 4, c: 1 }, e: { r: 4, c: 4 } }, // "CURSO ACADÉMICO"
+      { s: { r: 5, c: 1 }, e: { r: 5, c: 4 } }, // "2025-2026"
+      { s: { r: 2, c: 5 }, e: { r: 2, c: 10 } }, // "X° MOMENTO"
+      { s: { r: 3, c: 5 }, e: { r: 3, c: 10 } }, // "ÁREA DE APRENDIZAJE:"
+      { s: { r: 4, c: 5 }, e: { r: 4, c: 10 } }, // Nombre de la materia
+      { s: { r: 5, c: 5 }, e: { r: 5, c: 10 } }, // "DOCENTE:"
+      { s: { r: 6, c: 5 }, e: { r: 6, c: 10 } }, // Nombre del docente
+      { s: { r: 8, c: 2 }, e: { r: 8, c: 4 } }  // "APELLIDOS Y NOMBRES"
+    ];
+
+    // Agregar la hoja al workbook
+    XLSX.utils.book_append_sheet(wb, ws, `Momento ${momento}`);
+
+    // Generar el buffer del archivo Excel
+    const excelBuffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
+
+    // Crear el nombre del archivo
+    const fechaHoy = new Date().toISOString().split('T')[0];
+    const fileName = `Planilla_${nombreMateria.replace(/[^a-zA-Z0-9]/g, '_')}_${momento}Momento_${aula.anio}${aula.seccion}_${fechaHoy}.xlsx`;
+
+    // Retornar el archivo
+    return new NextResponse(excelBuffer, {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+        'Content-Length': excelBuffer.length.toString()
+      }
+    });
+
+  } catch (error) {
+    console.error('Error al generar planilla:', error);
+    return NextResponse.json({
+      success: false,
+      message: 'Error al generar planilla',
+      error: error.message
+    }, { status: 500 });
+  }
+}
