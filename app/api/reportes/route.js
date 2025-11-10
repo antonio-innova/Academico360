@@ -603,10 +603,6 @@ export async function GET(request) {
 
         // Normalizar el nombre de la materia antes de mostrarla
         let nombreMateriaNormalizado = normalizarNombreMateria(calificacion.materia);
-        const esMateriaAlfabetica = 
-          nombreMateriaNormalizado === 'Orientación y convivencia' ||
-          nombreMateriaNormalizado === 'Participación en grupos de Creación, Recreación y Producción';
-
         // Calcular el ancho máximo disponible para el nombre de la materia
         // Dejamos espacio hasta donde empieza la columna 1M (con un margen de seguridad)
         const anchoMaximoNombre = col1MX - colEvaluacionesX - 10; // 10px de margen de seguridad
@@ -643,11 +639,7 @@ export async function GET(request) {
         // Nota 1er Momento (siempre mostrar)
         let nota1 = '';
         if (calificacion.momento1) {
-          if (esMateriaAlfabetica) {
-            nota1 = convertirNotaAlfabetica(calificacion.momento1);
-          } else {
-            nota1 = Math.round(calificacion.momento1).toString();
-          }
+          nota1 = Math.round(calificacion.momento1).toString();
         }
         currentPage.drawText(nota1, {
           x: col1MX + 10,
@@ -660,11 +652,7 @@ export async function GET(request) {
         // Nota 2do Momento (mostrar "-" si el boletín es del 1er momento o no hay nota)
         let nota2 = '-';
         if (reporte.momento >= 2 && calificacion.momento2) {
-          if (esMateriaAlfabetica) {
-            nota2 = convertirNotaAlfabetica(calificacion.momento2);
-          } else {
-            nota2 = Math.round(calificacion.momento2).toString();
-          }
+          nota2 = Math.round(calificacion.momento2).toString();
         }
         currentPage.drawText(nota2, {
           x: col2MX + 10,
@@ -677,11 +665,7 @@ export async function GET(request) {
         // Nota 3er Momento (mostrar "-" si el boletín es del 1er o 2do momento o no hay nota)
         let nota3 = '-';
         if (reporte.momento === 3 && calificacion.momento3) {
-          if (esMateriaAlfabetica) {
-            nota3 = convertirNotaAlfabetica(calificacion.momento3);
-          } else {
-            nota3 = Math.round(calificacion.momento3).toString();
-          }
+          nota3 = Math.round(calificacion.momento3).toString();
         }
         currentPage.drawText(nota3, {
           x: col3MX + 10,
@@ -696,16 +680,12 @@ export async function GET(request) {
         let colorNota = negro;
         
         if (reporte.momento === 3 && calificacion.calificacion !== undefined) {
-          if (esMateriaAlfabetica) {
-            notaFinal = convertirNotaAlfabetica(calificacion.calificacion);
-          } else {
-            notaFinal = Math.round(calificacion.calificacion).toString();
-          }
+          notaFinal = Math.round(calificacion.calificacion).toString();
           
           colorNota = calificacion.calificacion < 10 ? rgb(0.8, 0, 0) : verde;
 
           // Acumular para promedio
-          if (!isNaN(calificacion.calificacion) && !esMateriaAlfabetica) {
+          if (!isNaN(calificacion.calificacion)) {
             sumaTotalCalificaciones += calificacion.calificacion;
             totalMaterias++;
           }

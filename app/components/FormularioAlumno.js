@@ -38,6 +38,32 @@ export default function FormularioAlumno({
       }
     }));
   }, [setFormData]);
+  const estadosVenezuela = [
+    'Amazonas',
+    'Anzoátegui',
+    'Apure',
+    'Aragua',
+    'Barinas',
+    'Bolívar',
+    'Carabobo',
+    'Cojedes',
+    'Delta Amacuro',
+    'Distrito Capital',
+    'Falcón',
+    'Guárico',
+    'Lara',
+    'Mérida',
+    'Miranda',
+    'Monagas',
+    'Nueva Esparta',
+    'Portuguesa',
+    'Sucre',
+    'Táchira',
+    'Trujillo',
+    'Vargas',
+    'Yaracuy',
+    'Zulia'
+  ];
 
   return (
     <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-md mb-6 border-t-4 border-blue-500 border-r border-b border-l border-blue-100 performance-form-container performance-no-animations">
@@ -226,38 +252,14 @@ export default function FormularioAlumno({
               Lugar de Nacimiento
             </label>
             <div className="relative">
-              <select
+              <input
+                type="text"
                 name="lugarNacimiento"
                 value={formData.lugarNacimiento || ''}
                 onChange={handleFormChange}
+                placeholder="Indique ciudad o localidad de nacimiento"
                 className="w-full pl-10 pr-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 critical-performance-input"
-              >
-                <option value="">Seleccione un estado</option>
-                <option value="Amazonas">Amazonas</option>
-                <option value="Anzoátegui">Anzoátegui</option>
-                <option value="Apure">Apure</option>
-                <option value="Aragua">Aragua</option>
-                <option value="Barinas">Barinas</option>
-                <option value="Bolívar">Bolívar</option>
-                <option value="Carabobo">Carabobo</option>
-                <option value="Cojedes">Cojedes</option>
-                <option value="Delta Amacuro">Delta Amacuro</option>
-                <option value="Distrito Capital">Distrito Capital</option>
-                <option value="Falcón">Falcón</option>
-                <option value="Guárico">Guárico</option>
-                <option value="Lara">Lara</option>
-                <option value="Mérida">Mérida</option>
-                <option value="Miranda">Miranda</option>
-                <option value="Monagas">Monagas</option>
-                <option value="Nueva Esparta">Nueva Esparta</option>
-                <option value="Portuguesa">Portuguesa</option>
-                <option value="Sucre">Sucre</option>
-                <option value="Táchira">Táchira</option>
-                <option value="Trujillo">Trujillo</option>
-                <option value="Vargas">Vargas</option>
-                <option value="Yaracuy">Yaracuy</option>
-                <option value="Zulia">Zulia</option>
-              </select>
+              />
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <span className="text-blue-500">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -299,17 +301,22 @@ export default function FormularioAlumno({
               <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" />
               </svg>
-              EF (Información adicional)
+              EF (Estado de Venezuela)
             </label>
             <div className="relative">
-              <input
-                type="text"
+              <select
                 name="ef"
                 value={formData.ef || ''}
                 onChange={handleFormChange}
                 className="w-full pl-10 pr-3 py-2 bg-white border border-blue-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 critical-performance-input"
-                placeholder="Información adicional del estudiante"
-              />
+              >
+                <option value="">Seleccione un estado</option>
+                {estadosVenezuela.map((estado) => (
+                  <option key={estado} value={estado}>
+                    {estado}
+                  </option>
+                ))}
+              </select>
               <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                 <span className="text-blue-500">
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
