@@ -621,6 +621,10 @@ export async function GET(request) {
             'GÉNERO': sexo,
             'AÑO': estudiante.anio || 'N/D',
             'SECCIÓN': estudiante.seccion || 'N/D',
+            // Nuevos campos
+            'LUGAR NACIMIENTO': estudiante.lugarNacimiento || 'N/D',
+            'MUNICIPIO': estudiante.ef || estudiante.municipio || 'N/D',
+            'DIRECCIÓN': '',
             // Datos del Representante
             'CINº Representante': representanteCedula,
             'Apellidos Representante': representanteApellidos,
@@ -645,6 +649,9 @@ export async function GET(request) {
           { wch: 12 }, // GÉNERO
           { wch: 8 },  // AÑO
           { wch: 12 }, // SECCIÓN
+          { wch: 22 }, // LUGAR NACIMIENTO
+          { wch: 18 }, // MUNICIPIO
+          { wch: 28 }, // DIRECCIÓN
           { wch: 15 }, // CINº Representante
           { wch: 25 }, // Apellidos Representante
           { wch: 25 }, // Nombres Representante
