@@ -76,13 +76,21 @@ export async function GET(request) {
         }
 
         const actividades = Array.isArray(asig.actividades) ? asig.actividades : [];
+        const parseFecha = (f) => {
+          if (!f) return 0;
+          if (typeof f === 'string' && f.includes('/')) {
+            const parts = f.split(/[\/\-]/).map(p => parseInt(p, 10));
+            // dd/mm/yyyy
+            if (parts.length === 3 && !isNaN(parts[0]) && !isNaN(parts[1]) && !isNaN(parts[2])) {
+              return new Date(parts[2], parts[1] - 1, parts[0]).getTime();
+            }
+          }
+          const t = new Date(f).getTime();
+          return isNaN(t) ? 0 : t;
+        };
         const actsMomento = actividades
           .filter(a => parseInt(a.momento) === momento)
-          .sort((a, b) => {
-            const fa = new Date(a.fecha || 0).getTime();
-            const fb = new Date(b.fecha || 0).getTime();
-            return fa - fb;
-          });
+          .sort((a, b) => parseFecha(a.fecha) - parseFecha(b.fecha));
 
         const notas = [];
         const ev = ['', '', '', '', ''];

@@ -736,8 +736,10 @@ export async function GET(request) {
       // yPosition -= 30;
 
       // ========== ÁREA SOMBREADA CON COMENTARIOS ==========
+      // Bajamos más el bloque gris para dar espacio a las firmas
+      yPosition -= 40; // Separación adicional antes del bloque de comentarios
       const areaComentariosY = yPosition;
-      const alturaAreaComentarios = 160;
+      const alturaAreaComentarios = 120; // Altura reducida
       
       // Fondo azul claro para toda el área de comentarios
       currentPage.drawRectangle({
@@ -758,7 +760,7 @@ export async function GET(request) {
         borderWidth: 1
       });
 
-      yPosition -= 20;
+      yPosition -= 15;
 
       // Título "Comentarios para el Estudiante"
       currentPage.drawText('Comentarios para el Estudiante', {
@@ -769,7 +771,7 @@ export async function GET(request) {
         color: azulOscuro
       });
 
-      yPosition -= 50;
+      yPosition -= 35;
 
       // Línea divisoria horizontal
       currentPage.drawLine({
@@ -779,57 +781,58 @@ export async function GET(request) {
         color: azulOscuro
       });
 
-      yPosition -= 20;
+      yPosition -= 15;
 
       // Fila con Ausencias Justificadas, Ausencias No Justificadas y Sello
-      const col1Width = (contentWidth - 20) / 3;
-      const col2Width = (contentWidth - 20) / 3;
-      const col3Width = (contentWidth - 20) / 3;
+      // Reducimos el ancho de las columnas numéricas (ausencias) y ampliamos el área del sello
+      const col1Width = (contentWidth - 20) * 0.25; // Ausencias Justificadas
+      const col2Width = (contentWidth - 20) * 0.25; // Ausencias no Justificadas
+      const col3Width = (contentWidth - 20) * 0.50; // Sello de la Institución
 
-      // Ausencias Justificadas
+      // Ausencias Justificadas (reducir tamaño de fuente si es necesario)
       currentPage.drawText('Ausencias Justificadas:', {
-        x: margin + 10,
+        x: margin + 5,
         y: yPosition,
-        size: fontSize - 1,
+        size: fontSize - 1.5,
         font: helveticaBoldFont,
         color: negro
       });
 
       // Línea vertical divisoria 1
       currentPage.drawLine({
-        start: { x: margin + col1Width, y: yPosition + 15 },
-        end: { x: margin + col1Width, y: yPosition - 30 },
+        start: { x: margin + col1Width, y: yPosition + 12 },
+        end: { x: margin + col1Width, y: yPosition - 22 },
         thickness: 0.5,
         color: azulOscuro
       });
 
-      // Ausencias No Justificadas
+      // Ausencias No Justificadas (reducir tamaño de fuente si es necesario)
       currentPage.drawText('Ausencias no Justificadas:', {
-        x: margin + col1Width + 10,
+        x: margin + col1Width + 5,
         y: yPosition,
-        size: fontSize - 1,
+        size: fontSize - 1.5,
         font: helveticaBoldFont,
         color: negro
       });
 
       // Línea vertical divisoria 2
       currentPage.drawLine({
-        start: { x: margin + col1Width + col2Width, y: yPosition + 15 },
-        end: { x: margin + col1Width + col2Width, y: yPosition - 30 },
+        start: { x: margin + col1Width + col2Width, y: yPosition + 12 },
+        end: { x: margin + col1Width + col2Width, y: yPosition - 22 },
         thickness: 0.5,
         color: azulOscuro
       });
 
       // Sello de la Institución
       currentPage.drawText('Sello de la Institución', {
-        x: margin + col1Width + col2Width + 40,
+        x: margin + col1Width + col2Width + 15,
         y: yPosition,
         size: fontSize - 1,
         font: helveticaBoldFont,
         color: negro
       });
 
-      yPosition -= 45;
+      yPosition -= 35;
 
       // Línea divisoria horizontal
       currentPage.drawLine({
@@ -839,7 +842,7 @@ export async function GET(request) {
         color: azulOscuro
       });
 
-      yPosition -= 20;
+      yPosition -= 15;
 
       // Retrasos
       currentPage.drawText('Retrasos:', {
@@ -850,32 +853,48 @@ export async function GET(request) {
         color: negro
       });
 
-      yPosition -= 30;
+      // Salir del cuadro gris (después de yPosition actual)
+      yPosition -= 35;
 
-      // Línea divisoria horizontal
-      currentPage.drawLine({
-        start: { x: margin, y: yPosition },
-        end: { x: pageWidth - margin, y: yPosition },
-        thickness: 0.5,
-        color: azulOscuro
-      });
+      // ========== FIRMAS FUERA DEL CUADRO GRIS ==========
+      // Bajamos más para dar espacio suficiente entre el recuadro y las firmas
+      yPosition -= 25;
 
-      yPosition -= 20;
+      // Firmas: Directora y Representante (dos líneas separadas)
+      const anchoFirma = (contentWidth - 80) / 2;
+      const xFirma1 = margin + 20;
+      const xFirma2 = margin + 60 + anchoFirma;
 
-      // Firma del tutor/a
-      currentPage.drawText('Firma:', {
-        x: margin + 10,
+      // Firma de la Directora
+      currentPage.drawText('Firma de la Directora:', {
+        x: xFirma1,
         y: yPosition,
         size: fontSize - 1,
         font: helveticaBoldFont,
         color: negro
       });
 
-      // Línea para la firma
-      const firmaLineY = yPosition - 5;
+      // Línea para firma de la directora
       currentPage.drawLine({
-        start: { x: margin + 120, y: firmaLineY },
-        end: { x: margin + 300, y: firmaLineY },
+        start: { x: xFirma1, y: yPosition - 20 },
+        end: { x: xFirma1 + anchoFirma, y: yPosition - 20 },
+        thickness: 0.5,
+        color: negro
+      });
+
+      // Firma del Representante
+      currentPage.drawText('Firma del Representante:', {
+        x: xFirma2,
+        y: yPosition,
+        size: fontSize - 1,
+        font: helveticaBoldFont,
+        color: negro
+      });
+
+      // Línea para firma del representante
+      currentPage.drawLine({
+        start: { x: xFirma2, y: yPosition - 20 },
+        end: { x: xFirma2 + anchoFirma, y: yPosition - 20 },
         thickness: 0.5,
         color: negro
       });
