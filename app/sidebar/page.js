@@ -13,6 +13,7 @@ import StudentNameDisplay, { formatFullName } from '../components/StudentNameDis
 import StudentNameById from '../components/StudentNameById';
 import GestionRepresentante from '../components/GestionRepresentante';
 import * as XLSX from 'xlsx';
+import { loadDriver } from '../utils/driverLoader';
 
 export default function SidebarPage() {
 
@@ -99,6 +100,120 @@ export default function SidebarPage() {
   const [aulaGestionProfesores, setAulaGestionProfesores] = useState(null);
   const [profesoresDisponibles, setProfesoresDisponibles] = useState([]);
   const [asignacionesAula, setAsignacionesAula] = useState([]);
+  const startDashboardTour = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#sidebar-menu',
+          popover: {
+            title: 'Menú Principal',
+            description: 'Desde aquí puedes acceder a la gestión de alumnos, docentes, aulas, reportes, boletines y asistencia.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-docentes',
+          popover: {
+            title: 'Gestión de Docentes',
+            description: 'Administra información de los profesores y sus credenciales de acceso.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-alumnos',
+          popover: {
+            title: 'Gestión de Alumnos',
+            description: 'Crea o edita alumnos, actualiza representantes y controla su estado académico.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-aulas',
+          popover: {
+            title: 'Creación de Aulas',
+            description: 'Organiza secciones, asigna estudiantes, materias y profesores por aula.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-reportes',
+          popover: {
+            title: 'Reportes y Boletines',
+            description: 'Genera reportes en Excel, boletines en PDF y formatos oficiales.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-notas',
+          popover: {
+            title: 'Notas Certificadas',
+            description: 'Registra y descarga notas certificadas para trámites oficiales.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#nav-asistencia',
+          popover: {
+            title: 'Módulo de Asistencia',
+            description: 'Controla asistencia diaria, retrasos y observaciones por aula.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#dashboard-content',
+          popover: {
+            title: 'Zona de Trabajo',
+            description: 'Dependiendo del módulo seleccionado, aquí aparecerán formularios, tablas y acciones disponibles.',
+            side: 'top',
+            align: 'center'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          return Boolean(document.querySelector(step.element));
+        }
+        if (typeof step.element === 'function') {
+          try {
+            return Boolean(step.element());
+          } catch (error) {
+            return false;
+          }
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('No se encontraron elementos para la guía en esta vista.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
 
   // Cargar aulas y otros datos al iniciar
   useEffect(() => {
@@ -6677,6 +6792,13 @@ export default function SidebarPage() {
                   </a>
                 )}
                 <button
+                  id="btn-tour-dashboard"
+                  onClick={startDashboardTour}
+                  className="px-3 py-1 bg-white text-blue-700 rounded-md hover:bg-sky-100 transition-colors font-medium shadow-sm mr-2"
+                >
+                  Guía
+                </button>
+                <button
                   onClick={handleLogout}
                   className="px-3 py-1 bg-white text-blue-700 rounded-md hover:bg-sky-100 transition-colors font-medium shadow-sm mr-2"
                 >
@@ -6693,7 +6815,7 @@ export default function SidebarPage() {
       <div className="flex flex-1 overflow-hidden">
         {/* Sidebar vertical */}
         <aside className={`bg-gradient-to-b from-blue-700 to-blue-900 shadow-lg transition-all duration-300 ${sidebarCollapsed ? 'w-16' : 'w-64'}`}>
-          <nav className="p-4 h-full">
+          <nav id="sidebar-menu" className="p-4 h-full">
             <ul className="space-y-3">
               {/* Renderizado condicional basado en el tipo de usuario */}
               {/* Opciones solo para usuarios de tipo 'control' */}
@@ -6701,6 +6823,7 @@ export default function SidebarPage() {
                 <>
                   <li>
                     <button
+                      id="nav-docentes"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'docentes' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('docentes')}
                     >
@@ -6712,6 +6835,7 @@ export default function SidebarPage() {
                   </li>
                   <li>
                     <button
+                      id="nav-alumnos"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'alumnos' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('alumnos')}
                     >
@@ -6725,6 +6849,7 @@ export default function SidebarPage() {
                   </li>
                   <li>
                     <button
+                      id="nav-aulas"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'aulas' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('aulas')}
                     >
@@ -6742,6 +6867,7 @@ export default function SidebarPage() {
                 <>
                   <li>
                     <button
+                      id="nav-reportes"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'reportes' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('reportes')}
                     >
@@ -6753,6 +6879,7 @@ export default function SidebarPage() {
                   </li>
                   <li>
                     <button
+                      id="nav-notas"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'notasCertificadas' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('notasCertificadas')}
                     >
@@ -6771,6 +6898,7 @@ export default function SidebarPage() {
                 <>
                   <li>
                     <button
+                      id="nav-asistencia"
                       className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'asistencia' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
                       onClick={() => setActiveTab('asistencia')}
                     >
@@ -6788,7 +6916,7 @@ export default function SidebarPage() {
         </aside>
 
         {/* Contenido principal */}
-        <main className="flex-1 p-6 overflow-auto bg-sky-50">
+        <main id="dashboard-content" className="flex-1 p-6 overflow-auto bg-sky-50">
           {/* Sección de Reportes */}
           {activeTab === 'planilla' && (
             <div className="bg-white rounded-lg shadow-md p-6">
@@ -7677,7 +7805,6 @@ export default function SidebarPage() {
                         value={notaTipoFormato} 
                         onChange={(e)=>setNotaTipoFormato(e.target.value)}
                       >
-                        <option value="1-3">1-3 año (Formato Original)</option>
                         <option value="1-5">1-5 año (Formato Quinto)</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
@@ -7693,7 +7820,7 @@ export default function SidebarPage() {
                     <input className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
                     <input className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
                   </div>
-                  <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}</button>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar Excel (1-5 año)</button>
                 </div>
               )}
             </div>

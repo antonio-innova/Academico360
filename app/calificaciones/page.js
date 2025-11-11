@@ -9,7 +9,7 @@ import reportStyles from './report.module.css';
 import BuscarEstudiante from '../components/BuscarEstudiante';
 import StudentNameById from '../components/StudentNameById';
 import ReporteCalificaciones from '../components/ReporteCalificaciones';
-// Driver.js se cargará dinámicamente para evitar errores si no está instalado
+import { loadDriver } from '../utils/driverLoader';
 
 // Función para convertir nota numérica a letra
 const convertirNotaALetra = (nota) => {
@@ -35,86 +35,60 @@ function CalificacionesContent() {
   const aulaId = searchParams.get('aulaId');
   const materiaId = searchParams.get('materiaId');
   
-  // Cargar Driver.js dinámicamente (npm o CDN) y ejecutar un callback
-  const withDriver = async (cb) => {
-    // Carga 100% vía CDN (evitar imports npm para no romper el build)
-    await new Promise((resolve) => {
-      // Insertar CSS si no existe
-      if (!document.getElementById('driverjs-css')) {
-        const link = document.createElement('link');
-        link.id = 'driverjs-css';
-        link.rel = 'stylesheet';
-        link.href = 'https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.css';
-        document.head.appendChild(link);
-      }
-      // Insertar script si no existe
-      if (!document.getElementById('driverjs-script')) {
-        const script = document.createElement('script');
-        script.id = 'driverjs-script';
-        // Usar build IIFE que expone window.driver
-        script.src = 'https://cdn.jsdelivr.net/npm/driver.js@latest/dist/driver.js.iife.js';
-        script.onload = () => resolve();
-        document.body.appendChild(script);
-      } else {
-        resolve();
-      }
-    });
-    // Según la doc de CDN: window.driver.js.driver
-    const drv = window?.driver?.js?.driver || window.driver || window.Driver;
-    return cb(drv);
-  };
-
   // Guía interactiva con Driver.js
-  const startTour = () => {
+  const startTour = async () => {
     try {
-      withDriver((driver) => {
-        if (!driver) throw new Error('Driver.js no disponible');
-        const tour = driver({
-          showProgress: true,
-          overlayClickNext: false,
-          popoverClass: 'tour-popover',
-          steps: [
-            {
-              element: '#seccion-actividades',
-              popover: {
-                title: 'Gestión de Actividades',
-                description: 'Aquí podrás crear actividades por momento, verlas y gestionarlas.',
-                side: 'bottom',
-                align: 'start'
-              }
-            },
-            {
-              element: '#btn-agregar-actividad',
-              popover: {
-                title: 'Agregar Actividad',
-                description: 'Haz clic para crear una nueva actividad (nombre, fecha, porcentaje y momento).',
-                side: 'bottom',
-                align: 'start'
-              }
-            },
-            {
-              // Primer botón "Calificar" disponible
-              element: () => document.querySelector(`.${styles.calificacionButton}`),
-              popover: {
-                title: 'Agregar una Nota',
-                description: 'Pulsa "Calificar" para abrir el formulario y registrar la nota del estudiante en esta actividad.',
-                side: 'left',
-                align: 'center'
-              }
-            },
-            {
-              element: () => document.querySelector(`.${styles.batchButton}`),
-              popover: {
-                title: 'Cargar Notas en Lote (Opcional)',
-                description: 'También puedes cargar notas para todos los estudiantes de una actividad en un solo paso.',
-                side: 'left',
-                align: 'center'
-              }
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        throw new Error('Driver.js no disponible');
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        overlayClickNext: false,
+        popoverClass: 'tour-popover',
+        steps: [
+          {
+            element: '#seccion-actividades',
+            popover: {
+              title: 'Gestión de Actividades',
+              description: 'Aquí podrás crear actividades por momento, verlas y gestionarlas.',
+              side: 'bottom',
+              align: 'start'
             }
-          ]
-        });
-        tour.drive();
+          },
+          {
+            element: '#btn-agregar-actividad',
+            popover: {
+              title: 'Agregar Actividad',
+              description: 'Haz clic para crear una nueva actividad (nombre, fecha, porcentaje y momento).',
+              side: 'bottom',
+              align: 'start'
+            }
+          },
+          {
+            // Primer botón "Calificar" disponible
+            element: () => document.querySelector(`.${styles.calificacionButton}`),
+            popover: {
+              title: 'Agregar una Nota',
+              description: 'Pulsa "Calificar" para abrir el formulario y registrar la nota del estudiante en esta actividad.',
+              side: 'left',
+              align: 'center'
+            }
+          },
+          {
+            element: () => document.querySelector(`.${styles.batchButton}`),
+            popover: {
+              title: 'Cargar Notas en Lote (Opcional)',
+              description: 'También puedes cargar notas para todos los estudiantes de una actividad en un solo paso.',
+              side: 'left',
+              align: 'center'
+            }
+          }
+        ]
       });
+
+      tour.drive();
     } catch (e) {
       console.error('No fue posible iniciar el tour:', e);
       alert('No fue posible iniciar la guía en esta vista.');
