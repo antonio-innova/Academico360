@@ -564,9 +564,28 @@ export async function POST(request) {
       console.error('❌ Error al escribir Orientación y Grupo y Participación:', error);
     }
 
+    // Definir área de impresión solo con el contenido relevante (sin espacios vacíos)
+    // Asumiendo que el contenido va desde A1 hasta aproximadamente W50
+    ws.pageSetup = {
+      paperSize: 9, // A4
+      orientation: 'landscape', // Horizontal
+      fitToPage: true,
+      fitToWidth: 1, // Ajustar a 1 página de ancho
+      fitToHeight: 1, // Ajustar a 1 página de alto
+      printArea: 'A1:W50', // Solo imprimir el área con contenido
+      margins: {
+        left: 0.2,
+        right: 0.2,
+        top: 0.2,
+        bottom: 0.2,
+        header: 0.2,
+        footer: 0.2
+      }
+    };
+
     const buffer = await workbook.xlsx.writeBuffer();
 
-    console.log('✅ Excel generado exitosamente (1-3 año)');
+    console.log('✅ Excel generado exitosamente (1-3 año) con configuración de página');
     
     const fileName = `nota_certificada_1-3_${(estudiante.cedula || 'estudiante')}.xlsx`;
     

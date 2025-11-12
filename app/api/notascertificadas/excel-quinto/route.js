@@ -501,9 +501,28 @@ export async function POST(request) {
       console.error('Error al escribir Orientación/Participación:', e);
     }
 
+    // Definir área de impresión solo con el contenido relevante (sin espacios vacíos)
+    // Para formato de 5 años, el contenido es más extenso
+    ws.pageSetup = {
+      paperSize: 9, // A4
+      orientation: 'landscape', // Horizontal
+      fitToPage: true,
+      fitToWidth: 1, // Ajustar a 1 página de ancho
+      fitToHeight: 1, // Ajustar a 1 página de alto
+      printArea: 'A1:W60', // Solo imprimir el área con contenido (más filas para 5 años)
+      margins: {
+        left: 0.2,
+        right: 0.2,
+        top: 0.2,
+        bottom: 0.2,
+        header: 0.2,
+        footer: 0.2
+      }
+    };
+
     const buffer = await workbook.xlsx.writeBuffer();
 
-    console.log('✅ Excel generado exitosamente (1-5 año)');
+    console.log('✅ Excel generado exitosamente (1-5 año) con configuración de página');
     
     const fileName = `nota_certificada_1-5_${(estudiante.cedula || 'estudiante')}.xlsx`;
     

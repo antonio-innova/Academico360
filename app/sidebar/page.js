@@ -253,6 +253,10 @@ export default function SidebarPage() {
   const [notaEst, setNotaEst] = useState({ cedula: '', nombres: '', apellidos: '', fechaNacimiento: '', pais: 'VENEZUELA', estado: '', municipio: '' });
   const [notaPlan, setNotaPlan] = useState([{ grado: '1', materias: getMateriasByGrado('1').map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' })) }]);
   const [savingNotas, setSavingNotas] = useState(false);
+  const [previewNotasVisible, setPreviewNotasVisible] = useState(false);
+  const [previewNotasHtml, setPreviewNotasHtml] = useState('');
+  const [previewNotasBlob, setPreviewNotasBlob] = useState(null);
+  const [previewNotasFileName, setPreviewNotasFileName] = useState('');
 
   // Estados para inscripción de alumnos
   const [showInscripcionModal, setShowInscripcionModal] = useState(false);
@@ -368,25 +372,96 @@ export default function SidebarPage() {
       });
       if (!res.ok) throw new Error('No se pudo generar el Excel');
       const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
+      const arrayBuffer = await blob.arrayBuffer();
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      const sheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[sheetName];
       
-      // Determinar la extensión según el tipo de respuesta
+      // Generar HTML con estilos mejorados para mejor visualización
+      const html = XLSX.utils.sheet_to_html(worksheet, { 
+        header: '<style>table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #4472C4; color: white; }</style>', 
+        footer: '' 
+      });
+
       const contentDisposition = res.headers.get('Content-Disposition');
       const fileName = contentDisposition 
         ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
         : `nota_certificada_${notaTipoFormato}_${notaEst.cedula || 'estudiante'}.xlsx`;
-      
-      a.download = fileName;
-      a.click();
-      window.URL.revokeObjectURL(url);
-      setNotification({ type: 'success', message: 'Excel generado' });
+
+      // Crear URL del blob para vista previa
+      const blobUrl = window.URL.createObjectURL(blob);
+
+      setPreviewNotasBlob(blob);
+      setPreviewNotasHtml(html);
+      setPreviewNotasFileName(fileName);
+      setPreviewNotasVisible(true);
+      setNotification({ type: 'info', message: 'Previsualiza el Excel antes de descargarlo.' });
       setTimeout(()=> setNotification(null), 3000);
     } catch (err) {
       setNotification({ type: 'error', message: err.message });
       setTimeout(()=> setNotification(null), 3000);
     }
+  };
+
+  const descargarNotasPreview = async () => {
+    if (!previewNotasBlob) return;
+    
+    try {
+      setNotification({ type: 'info', message: 'Convirtiendo Excel a PDF...' });
+      
+      // Crear FormData para enviar el archivo Excel
+      const formData = new FormData();
+      formData.append('file', previewNotasBlob, previewNotasFileName);
+      formData.append('fileName', previewNotasFileName);
+
+      // Llamar al endpoint de conversión
+      const response = await fetch('/api/notascertificadas/convert-pdf', {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        throw new Error('Error al convertir Excel a PDF');
+      }
+
+      // Descargar el PDF
+      const pdfBlob = await response.blob();
+      const pdfFileName = previewNotasFileName.replace('.xlsx', '.pdf').replace('.xls', '.pdf');
+      const url = window.URL.createObjectURL(pdfBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = pdfFileName;
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      setNotification({ type: 'success', message: 'PDF descargado exitosamente' });
+      setTimeout(() => setNotification(null), 3000);
+    } catch (error) {
+      console.error('Error al descargar PDF:', error);
+      setNotification({ type: 'error', message: 'Error al convertir a PDF. Descargando Excel...' });
+      
+      // Fallback: descargar el Excel original
+      const url = window.URL.createObjectURL(previewNotasBlob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = previewNotasFileName || 'nota_certificada.xlsx';
+      a.click();
+      window.URL.revokeObjectURL(url);
+      
+      setTimeout(() => setNotification(null), 3000);
+    }
+  };
+
+  const descargarExcelOriginal = () => {
+    if (!previewNotasBlob) return;
+    const url = window.URL.createObjectURL(previewNotasBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = previewNotasFileName || 'nota_certificada.xlsx';
+    a.click();
+    window.URL.revokeObjectURL(url);
+    setNotification({ type: 'success', message: 'Excel descargado exitosamente' });
+    setTimeout(() => setNotification(null), 3000);
   };
 
   const setFechaAnioParaTodo = (anioIdx) => {
@@ -7805,6 +7880,7 @@ export default function SidebarPage() {
                         value={notaTipoFormato} 
                         onChange={(e)=>setNotaTipoFormato(e.target.value)}
                       >
+                        <option value="1-3">1-3 año (Formato Original)</option>
                         <option value="1-5">1-5 año (Formato Quinto)</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
@@ -7820,9 +7896,103 @@ export default function SidebarPage() {
                     <input className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
                     <input className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
                   </div>
-                  <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar Excel (1-5 año)</button>
+                  <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}</button>
                 </div>
               )}
+            </div>
+          )}
+
+          {previewNotasVisible && (
+            <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
+              <div className="bg-white rounded-lg shadow-2xl max-w-7xl w-full max-h-[90vh] overflow-hidden flex flex-col">
+                <div className="px-6 py-4 border-b flex items-center justify-between bg-gradient-to-r from-blue-600 to-blue-700">
+                  <div className="flex items-center gap-3">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <h3 className="text-lg font-semibold text-white">Previsualización Excel: {previewNotasFileName}</h3>
+                  </div>
+                  <button
+                    onClick={() => setPreviewNotasVisible(false)}
+                    className="text-white hover:text-gray-200 transition-colors text-2xl font-bold"
+                  >
+                    ✕
+                  </button>
+                </div>
+                <div className="flex-1 overflow-auto p-6 bg-gray-100">
+                  <style dangerouslySetInnerHTML={{ __html: `
+                    .excel-preview table {
+                      border-collapse: collapse;
+                      width: 100%;
+                      background: white;
+                      box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+                      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+                      font-size: 13px;
+                    }
+                    .excel-preview td, .excel-preview th {
+                      border: 1px solid #d0d7de;
+                      padding: 8px 12px;
+                      text-align: left;
+                      min-width: 80px;
+                    }
+                    .excel-preview th {
+                      background-color: #4472C4;
+                      color: white;
+                      font-weight: 600;
+                      text-transform: uppercase;
+                      font-size: 11px;
+                      letter-spacing: 0.5px;
+                    }
+                    .excel-preview tr:nth-child(even) {
+                      background-color: #f6f8fa;
+                    }
+                    .excel-preview tr:hover {
+                      background-color: #e8f0fe;
+                    }
+                    .excel-preview td[align="right"] {
+                      text-align: right;
+                    }
+                    .excel-preview td[align="center"] {
+                      text-align: center;
+                    }
+                  ` }} />
+                  <div
+                    className="excel-preview min-h-[500px] bg-white border rounded-lg shadow-inner p-6 overflow-auto"
+                    dangerouslySetInnerHTML={{ __html: previewNotasHtml }}
+                  />
+                </div>
+                <div className="px-6 py-4 border-t bg-gray-50 flex justify-between items-center">
+                  <p className="text-sm text-gray-600">
+                    <span className="font-semibold">Nota:</span> Puedes descargar el archivo como PDF (conversión automática) o como Excel original.
+                  </p>
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setPreviewNotasVisible(false)}
+                      className="px-5 py-2 bg-gray-200 text-gray-700 rounded-lg hover:bg-gray-300 transition-colors font-medium"
+                    >
+                      Cerrar
+                    </button>
+                    <button
+                      onClick={descargarExcelOriginal}
+                      className="px-5 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      Descargar Excel
+                    </button>
+                    <button
+                      onClick={descargarNotasPreview}
+                      className="px-5 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors font-medium flex items-center gap-2"
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z" />
+                      </svg>
+                      Descargar PDF
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         {loading ? (
