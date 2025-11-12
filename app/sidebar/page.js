@@ -215,6 +215,897 @@ export default function SidebarPage() {
     }
   }, []);
 
+  // Función para iniciar el tour de Gestión de Alumnos
+  const startTourAlumnos = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      // Verificar si el formulario está visible usando el DOM
+      const formVisible = document.querySelector('#input-nombre-alumno') !== null;
+      
+      // Si el formulario no está visible, intentar abrirlo
+      if (!formVisible) {
+        // Buscar el botón de agregar alumno y hacer clic programáticamente
+        const btnAgregar = document.querySelector('#btn-agregar-alumno');
+        if (btnAgregar) {
+          btnAgregar.click();
+          // Esperar un momento para que el formulario se renderice
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#btn-agregar-alumno',
+          popover: {
+            title: 'Paso 1: Abrir Formulario',
+            description: 'Haz clic aquí para abrir el formulario de registro de un nuevo estudiante.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-nombre-alumno',
+          popover: {
+            title: 'Paso 2: Nombre del Estudiante',
+            description: 'Ingresa el nombre del estudiante. Este campo es obligatorio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-apellido-alumno',
+          popover: {
+            title: 'Paso 3: Apellido del Estudiante',
+            description: 'Ingresa el apellido del estudiante. Este campo también es obligatorio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-cedula-alumno',
+          popover: {
+            title: 'Paso 4: Cédula del Estudiante',
+            description: 'Ingresa la cédula del estudiante. Si no posee cédula, puedes usar "N/P" o la cédula del representante.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-fecha-nacimiento-alumno',
+          popover: {
+            title: 'Paso 5: Fecha de Nacimiento',
+            description: 'Selecciona la fecha de nacimiento del estudiante. El sistema calculará automáticamente la edad y determinará si es menor de edad.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-lugar-nacimiento-alumno',
+          popover: {
+            title: 'Paso 6: Lugar de Nacimiento',
+            description: 'Selecciona el estado de Venezuela donde nació el estudiante.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-sexo-alumno',
+          popover: {
+            title: 'Paso 7: Sexo',
+            description: 'Selecciona el sexo del estudiante: Masculino, Femenino u Otro.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-ef-alumno',
+          popover: {
+            title: 'Paso 8: Información Adicional (EF)',
+            description: 'Opcional: Ingresa información adicional del estudiante si es necesario.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-anio-alumno',
+          popover: {
+            title: 'Paso 9: Año Escolar',
+            description: 'Selecciona el año escolar del estudiante (1er a 5to año).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-seccion-alumno',
+          popover: {
+            title: 'Paso 10: Sección',
+            description: 'Selecciona la sección del estudiante (A, B, C, D o E).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-nombre-representante',
+          popover: {
+            title: 'Paso 11: Nombre del Representante',
+            description: 'Ingresa el nombre del representante del estudiante. Este campo es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-apellido-representante',
+          popover: {
+            title: 'Paso 12: Apellido del Representante',
+            description: 'Ingresa el apellido del representante. Este campo también es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-cedula-representante',
+          popover: {
+            title: 'Paso 13: Cédula del Representante',
+            description: 'Ingresa el número de cédula del representante. Este campo es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-telefono-representante',
+          popover: {
+            title: 'Paso 14: Teléfono del Representante',
+            description: 'Ingresa el número de teléfono del representante. Este campo es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-correo-representante',
+          popover: {
+            title: 'Paso 15: Correo del Representante',
+            description: 'Opcional: Ingresa el correo electrónico del representante si está disponible.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-parentesco-representante',
+          popover: {
+            title: 'Paso 16: Parentesco',
+            description: 'Selecciona el parentesco del representante con el estudiante (Padre, Madre, Abuelo, etc.).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-guardar-alumno',
+          popover: {
+            title: 'Paso 17: Guardar Alumno',
+            description: 'Una vez completados todos los campos obligatorios (marcados con *), haz clic aquí para guardar el nuevo estudiante y su representante en el sistema.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          return Boolean(document.querySelector(step.element));
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('Por favor, asegúrate de que el formulario esté visible para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de alumnos:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
+  // Función para iniciar el tour de Gestión de Docentes
+  const startTourDocentes = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      // Verificar si el formulario está visible usando el DOM
+      const formVisible = document.querySelector('#input-nombre-profesor') !== null;
+      
+      // Si el formulario no está visible, intentar abrirlo
+      if (!formVisible) {
+        // Buscar el botón de agregar profesor y hacer clic programáticamente
+        const btnAgregar = document.querySelector('#btn-agregar-profesor');
+        if (btnAgregar) {
+          btnAgregar.click();
+          // Esperar un momento para que el formulario se renderice
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#btn-agregar-profesor',
+          popover: {
+            title: 'Paso 1: Abrir Formulario',
+            description: 'Haz clic aquí para abrir el formulario de registro de un nuevo profesor.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-nombre-profesor',
+          popover: {
+            title: 'Paso 2: Nombre del Profesor',
+            description: 'Ingresa el nombre del profesor. Este campo es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-apellido-profesor',
+          popover: {
+            title: 'Paso 3: Apellido del Profesor',
+            description: 'Ingresa el apellido del profesor. Este campo también es obligatorio (*).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-cedula-profesor',
+          popover: {
+            title: 'Paso 4: Cédula del Profesor',
+            description: 'Ingresa la cédula del profesor. Este campo es opcional, pero recomendado para identificación.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-email-profesor',
+          popover: {
+            title: 'Paso 5: Correo Electrónico',
+            description: 'Ingresa el correo electrónico del profesor. Este será utilizado para el acceso al sistema y comunicación.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-telefono-profesor',
+          popover: {
+            title: 'Paso 6: Teléfono',
+            description: 'Ingresa el número de teléfono del profesor para contacto y comunicación.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-especialidad-profesor',
+          popover: {
+            title: 'Paso 7: Especialidad',
+            description: 'Ingresa la especialidad o materias que imparte el profesor (ej: Matemáticas, Castellano, Inglés, etc.).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-fecha-ingreso-profesor',
+          popover: {
+            title: 'Paso 8: Fecha de Ingreso',
+            description: 'Selecciona la fecha en que el profesor ingresó a la institución. Este campo es opcional.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-estado-profesor',
+          popover: {
+            title: 'Paso 9: Estado del Docente',
+            description: 'Activa o desactiva el acceso del profesor al sistema. Si está activo, podrá iniciar sesión. Si está bloqueado, no tendrá acceso.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-guardar-profesor',
+          popover: {
+            title: 'Paso 10: Guardar Profesor',
+            description: 'Una vez completados todos los campos obligatorios (marcados con *), haz clic aquí para guardar el nuevo profesor en el sistema.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          return Boolean(document.querySelector(step.element));
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('Por favor, asegúrate de que el formulario esté visible para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de docentes:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
+  // Función para iniciar el tour de Gestión de Aulas
+  const startTourAulas = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      // Verificar si el formulario está visible usando el DOM
+      const formVisible = document.querySelector('#input-nombre-aula') !== null;
+      
+      // Si el formulario no está visible, intentar abrirlo
+      if (!formVisible) {
+        // Buscar el botón de agregar aula y hacer clic programáticamente
+        const btnAgregar = document.querySelector('#btn-agregar-aula');
+        if (btnAgregar) {
+          btnAgregar.click();
+          // Esperar un momento para que el formulario se renderice
+          await new Promise(resolve => setTimeout(resolve, 500));
+        }
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#btn-agregar-aula',
+          popover: {
+            title: 'Paso 1: Abrir Formulario',
+            description: 'Haz clic aquí para abrir el formulario de creación de una nueva aula.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-nombre-aula',
+          popover: {
+            title: 'Paso 2: Nombre del Aula',
+            description: 'Ingresa un nombre descriptivo para el aula (ej: "1er Año Sección A"). Este campo es obligatorio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-anio-aula',
+          popover: {
+            title: 'Paso 3: Año Escolar',
+            description: 'Selecciona el año escolar del aula (1er a 5to año).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-seccion-aula',
+          popover: {
+            title: 'Paso 4: Sección',
+            description: 'Selecciona la sección del aula (A o B).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-turno-aula',
+          popover: {
+            title: 'Paso 5: Turno',
+            description: 'Selecciona el turno del aula: Mañana o Tarde.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#radio-periodo-nuevo',
+          popover: {
+            title: 'Paso 6: Tipo de Periodo',
+            description: 'Selecciona si deseas crear un nuevo periodo o usar uno existente. Si es nuevo, deberás ingresar el nombre del periodo.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-periodo-nuevo',
+          popover: {
+            title: 'Paso 7: Periodo (Nuevo)',
+            description: 'Si seleccionaste "Nuevo Periodo", ingresa el nombre del periodo (ej: "2025-1" o "2025-2026"). Este campo es obligatorio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-guardar-aula',
+          popover: {
+            title: 'Paso 8: Guardar Aula',
+            description: 'Una vez completados todos los campos obligatorios, puedes seleccionar estudiantes y asignar profesores a las materias. Luego haz clic aquí para guardar el aula en el sistema.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          // Para el campo de periodo, verificar si está visible según el tipo seleccionado
+          if (step.element === '#input-periodo-nuevo') {
+            const periodoNuevo = document.querySelector('#radio-periodo-nuevo');
+            if (periodoNuevo && !periodoNuevo.checked) {
+              return false; // No mostrar este paso si no está seleccionado "nuevo"
+            }
+          }
+          if (step.element === '#select-periodo-existente') {
+            const periodoExistente = document.querySelector('#radio-periodo-existente');
+            if (periodoExistente && !periodoExistente.checked) {
+              return false; // No mostrar este paso si no está seleccionado "existente"
+            }
+          }
+          return Boolean(document.querySelector(step.element));
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('Por favor, asegúrate de que el formulario esté visible para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de aulas:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
+  // Función para iniciar el tour de Generación de Reportes
+  const startTourReportes = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#select-aula-reportes',
+          popover: {
+            title: '📊 Paso 1: Seleccionar Aula',
+            description: 'Selecciona el aula para la cual deseas generar el reporte. Este campo es obligatorio y debe seleccionarse antes de poder generar cualquier reporte.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-estudiante-reportes',
+          popover: {
+            title: '👤 Paso 2: Seleccionar Estudiante (Opcional)',
+            description: 'Opcionalmente, puedes seleccionar un estudiante específico para generar un reporte individual. Si no seleccionas ningún estudiante, se generará el reporte para todos los estudiantes del aula seleccionada.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-generar-reporte-1',
+          popover: {
+            title: '📋 Paso 3: Generar Reporte 1° Momento',
+            description: 'Haz clic aquí para generar el reporte del primer momento evaluativo. Este reporte incluirá todas las calificaciones y actividades del primer período académico para el aula (o estudiante) seleccionado.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-generar-reporte-2',
+          popover: {
+            title: '📋 Paso 4: Generar Reporte 2° Momento',
+            description: 'Haz clic aquí para generar el reporte del segundo momento evaluativo. Este reporte incluirá todas las calificaciones y actividades del segundo período académico.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-generar-reporte-3',
+          popover: {
+            title: '📋 Paso 5: Generar Reporte 3° Momento',
+            description: 'Haz clic aquí para generar el reporte del tercer momento evaluativo. Este reporte incluirá todas las calificaciones y actividades del tercer período académico, que generalmente corresponde al período final del año escolar.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      // Filtrar los pasos que existen en el DOM
+      const validSteps = [];
+      for (const step of stepDefinitions) {
+        if (typeof window === 'undefined') continue;
+        if (typeof step.element === 'string') {
+          const element = document.querySelector(step.element);
+          if (element) {
+            validSteps.push(step);
+          }
+        }
+      }
+
+      if (validSteps.length === 0) {
+        alert('Por favor, asegúrate de estar en el módulo de Reportes para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps: validSteps,
+        allowClose: true,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 5,
+        popoverClass: 'driverjs-theme',
+        popoverOffset: 20
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de reportes:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
+  // Función para iniciar el tour de Notas Certificadas
+  const startTourNotasCertificadas = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      // Verificar el estado actual de la pestaña usando el DOM
+      const tabAgregar = document.querySelector('#btn-tab-agregar-estudiante');
+      const isAgregarActive = tabAgregar && tabAgregar.classList.contains('bg-blue-600');
+      
+      // Si no está en la pestaña de "Agregar Estudiante", cambiarla
+      if (!isAgregarActive && tabAgregar) {
+        tabAgregar.click();
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#btn-tab-agregar-estudiante',
+          popover: {
+            title: '📝 Paso 1: Pestaña Agregar Estudiante',
+            description: 'Esta pestaña te permite registrar toda la información del estudiante, sus planteles educativos y su plan de estudio completo. Es el primer paso para crear una nota certificada.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-agregar-plantel',
+          popover: {
+            title: '🏫 Paso 2: Agregar Planteles Educativos',
+            description: 'Haz clic aquí para agregar los planteles donde el estudiante cursó estudios. Es importante agregar al menos un plantel, ya que lo necesitarás para asignarlo a cada materia del plan de estudio.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-cedula-nota',
+          popover: {
+            title: '🆔 Paso 3: Cédula del Estudiante',
+            description: 'Ingresa el número de cédula del estudiante. Este dato es fundamental para la identificación en el certificado.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-nombres-nota',
+          popover: {
+            title: '👤 Paso 4: Nombres del Estudiante',
+            description: 'Ingresa los nombres del estudiante tal como aparecerán en el certificado oficial.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-apellidos-nota',
+          popover: {
+            title: '👤 Paso 5: Apellidos del Estudiante',
+            description: 'Ingresa los apellidos del estudiante. Asegúrate de escribirlos correctamente para el certificado.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-fecha-nacimiento-nota',
+          popover: {
+            title: '📅 Paso 6: Fecha de Nacimiento',
+            description: 'Ingresa la fecha de nacimiento en formato dd/mm/aaaa (ejemplo: 15/03/2008).',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-estado-nota',
+          popover: {
+            title: '📍 Paso 7: Estado y Municipio',
+            description: 'Completa el estado y municipio de nacimiento del estudiante. Estos datos son requeridos para el certificado oficial.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-grado-nota-0',
+          popover: {
+            title: '📚 Paso 8: Plan de Estudio - Grado',
+            description: 'Selecciona el grado (1° a 5°) del plan de estudio. Las materias se generarán automáticamente según el grado seleccionado. Puedes agregar múltiples años usando el botón "+ Añadir Año".',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-guardar-nota-certificada',
+          popover: {
+            title: '💾 Paso 9: Guardar Información',
+            description: 'Una vez completados todos los datos del estudiante, planteles y plan de estudio, haz clic aquí para guardar la información en el sistema.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-tab-generar-certificado',
+          popover: {
+            title: '📄 Paso 10: Generar Certificado',
+            description: 'Ahora cambia a esta pestaña para generar el Excel del certificado. Aquí podrás previsualizar y descargar el documento oficial.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-tipo-formato-nota',
+          popover: {
+            title: '📋 Paso 11: Tipo de Formato',
+            description: 'Selecciona el formato según los años cursados: "1-3 año" para estudiantes hasta 3er año, o "1-5 año" para estudiantes que han cursado hasta 5to año.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-cedula-generar',
+          popover: {
+            title: '🔍 Paso 12: Datos para Generar',
+            description: 'Ingresa la cédula, nombres y apellidos del estudiante. Estos datos se usarán para generar el Excel del certificado.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-generar-excel-nota',
+          popover: {
+            title: '✨ Paso 13: Generar Excel',
+            description: 'Haz clic aquí para generar el Excel del certificado. El sistema te mostrará una previsualización antes de descargarlo. Podrás descargarlo como Excel o convertirlo automáticamente a PDF manteniendo el formato exacto.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          return Boolean(document.querySelector(step.element));
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('Por favor, asegúrate de estar en el módulo de Notas Certificadas para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps,
+        allowClose: true,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 5,
+        popoverClass: 'driverjs-theme',
+        popoverOffset: 20
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de notas certificadas:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
+  // Función para iniciar el tour de Gestión de Asistencia
+  const startTourAsistencia = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      // Verificar el estado actual de la pestaña usando el DOM
+      const tabControl = document.querySelector('#btn-tab-control-asistencia');
+      const isControlActive = tabControl && tabControl.classList.contains('bg-white');
+      
+      // Si no está en la pestaña de "Control de Asistencia", cambiarla
+      if (!isControlActive && tabControl) {
+        tabControl.click();
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#btn-tab-control-asistencia',
+          popover: {
+            title: '📋 Paso 1: Control de Asistencia',
+            description: 'Esta pestaña te permite registrar la asistencia diaria de los estudiantes. Aquí podrás marcar si están presentes, ausentes o con tardanza.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-aula-asistencia-control',
+          popover: {
+            title: '🏫 Paso 2: Seleccionar Aula',
+            description: 'Selecciona el aula para la cual deseas registrar la asistencia. Al seleccionar un aula, se cargarán automáticamente los estudiantes de esa aula.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-materia-asistencia-control',
+          popover: {
+            title: '📚 Paso 3: Seleccionar Materia',
+            description: 'Selecciona la materia específica para la cual estás registrando la asistencia. Este campo es obligatorio para poder guardar los registros.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-fecha-asistencia-control',
+          popover: {
+            title: '📅 Paso 4: Seleccionar Fecha',
+            description: 'Selecciona la fecha para la cual estás registrando la asistencia. Por defecto se muestra la fecha actual, pero puedes cambiarla si necesitas registrar asistencia de días anteriores.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-guardar-asistencia',
+          popover: {
+            title: '💾 Paso 5: Guardar Asistencia',
+            description: 'Una vez que hayas marcado la asistencia de los estudiantes (Presente, Ausente o Tardanza), haz clic aquí para guardar los registros en el sistema. El botón se habilitará cuando hayas marcado al menos un estudiante y seleccionado una materia.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-tab-ver-reportes',
+          popover: {
+            title: '📈 Paso 6: Ver Reportes',
+            description: 'Haz clic en este botón para cambiar a la pestaña de "Ver Reportes". Aquí podrás consultar y visualizar los reportes de asistencia guardados, filtrando por aula, materia y fecha. Después de hacer clic, el tour continuará mostrando los pasos de esta pestaña.',
+            side: 'bottom',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-aula-asistencia-reporte',
+          popover: {
+            title: '🔍 Paso 7: Seleccionar Aula (Reporte)',
+            description: 'Selecciona el aula de la cual deseas ver el reporte de asistencia. Este campo es obligatorio para generar el reporte.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-materia-asistencia-reporte',
+          popover: {
+            title: '📖 Paso 8: Seleccionar Materia (Opcional)',
+            description: 'Opcionalmente, puedes seleccionar una materia específica para filtrar el reporte. Si no seleccionas ninguna materia, se mostrarán todos los registros de asistencia del aula para la fecha seleccionada.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#input-fecha-asistencia-reporte',
+          popover: {
+            title: '📆 Paso 9: Seleccionar Fecha (Reporte)',
+            description: 'Selecciona la fecha para la cual deseas ver el reporte de asistencia. Puedes consultar registros de cualquier fecha anterior.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-buscar-reporte-asistencia',
+          popover: {
+            title: '🔎 Paso 10: Buscar Reporte',
+            description: 'Una vez seleccionado el aula y la fecha (y opcionalmente la materia), haz clic aquí para generar y visualizar el reporte de asistencia. El sistema mostrará todos los registros que coincidan con los filtros seleccionados.',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      // Filtrar los pasos que existen en el DOM
+      const validSteps = [];
+      for (const step of stepDefinitions) {
+        if (typeof window === 'undefined') continue;
+        if (typeof step.element === 'string') {
+          const element = document.querySelector(step.element);
+          if (element) {
+            validSteps.push(step);
+          }
+        }
+      }
+
+      if (validSteps.length === 0) {
+        alert('Por favor, asegúrate de estar en el módulo de Asistencia para iniciar la guía.');
+        return;
+      }
+
+      // Crear el tour con todos los pasos válidos
+      const tour = driverFn({
+        showProgress: true,
+        steps: validSteps,
+        allowClose: true,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 5,
+        popoverClass: 'driverjs-theme',
+        popoverOffset: 20
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de asistencia:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
   // Cargar aulas y otros datos al iniciar
   useEffect(() => {
     const init = async () => {
@@ -7155,12 +8046,22 @@ export default function SidebarPage() {
           )}
           {activeTab === 'reportes' && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Generación de Reportes</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Generación de Reportes</h2>
+                <button
+                  id="btn-tour-reportes"
+                  onClick={startTourReportes}
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                >
+                  Guía
+                </button>
+              </div>
               
               {/* Selector de Aula */}
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
                 <select
+                  id="select-aula-reportes"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedAula}
                   onChange={(e) => {
@@ -7185,6 +8086,7 @@ export default function SidebarPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Estudiante (Opcional)</label>
                 <select
+                  id="select-estudiante-reportes"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedStudent}
                   onChange={(e) => setSelectedStudent(e.target.value)}
@@ -7204,6 +8106,7 @@ export default function SidebarPage() {
                 {[1, 2, 3].map(momento => (
                   <button
                     key={momento}
+                    id={`btn-generar-reporte-${momento}`}
                     onClick={() => generarReporte(momento, selectedAula)}
                     disabled={!selectedAula}
                     className={`p-4 rounded-lg text-white font-medium transition-all duration-300 ${!selectedAula ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'}`}
@@ -7218,20 +8121,30 @@ export default function SidebarPage() {
           {/* Sección de Asistencia */}
           {activeTab === 'asistencia' && (
             <div className="bg-white rounded-lg shadow-lg p-8">
-              <div className="flex items-center mb-8">
-                <div className="bg-blue-100 p-3 rounded-full mr-4">
-                  📅
+              <div className="flex items-center justify-between mb-8">
+                <div className="flex items-center">
+                  <div className="bg-blue-100 p-3 rounded-full mr-4">
+                    📅
+                  </div>
+                  <div>
+                    <h2 className="text-3xl font-bold text-gray-800">Gestión de Asistencia</h2>
+                    <p className="text-gray-600 mt-1">Controla y consulta la asistencia de los estudiantes</p>
+                  </div>
                 </div>
-                <div>
-                  <h2 className="text-3xl font-bold text-gray-800">Gestión de Asistencia</h2>
-                  <p className="text-gray-600 mt-1">Controla y consulta la asistencia de los estudiantes</p>
-                </div>
+                <button
+                  id="btn-tour-asistencia"
+                  onClick={startTourAsistencia}
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                >
+                  Guía
+                </button>
               </div>
               
               {/* Sub-pestañas de Asistencia - Diseño Mejorado */}
               <div className="mb-8">
                 <div className="bg-gray-100 rounded-lg p-1 inline-flex">
                   <button
+                    id="btn-tab-control-asistencia"
                     onClick={() => {
                       console.log('Cambiando a control');
                       setAttendanceSubTab('control');
@@ -7245,6 +8158,7 @@ export default function SidebarPage() {
                     📋 Control de Asistencia
                   </button>
                   <button
+                    id="btn-tab-ver-reportes"
                     onClick={() => {
                       console.log('Cambiando a reporte');
                       setAttendanceSubTab('reporte');
@@ -7268,6 +8182,7 @@ export default function SidebarPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
                 <select
+                  id="select-aula-asistencia-control"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedAula}
                   onChange={(e) => {
@@ -7294,6 +8209,7 @@ export default function SidebarPage() {
                 <div className="mb-6">
                   <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Materia</label>
                   <select
+                    id="select-materia-asistencia-control"
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={selectedMateria}
                     onChange={(e) => setSelectedMateria(e.target.value)}
@@ -7312,6 +8228,7 @@ export default function SidebarPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
                 <input
+                  id="input-fecha-asistencia-control"
                   type="date"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={selectedDate}
@@ -7397,6 +8314,7 @@ export default function SidebarPage() {
                     Estudiantes marcados: {Object.keys(attendanceData).filter(id => attendanceData[id]?.estado).length} de {estudiantesPorAula[selectedAula]?.length || 0}
                   </div>
                   <button
+                    id="btn-guardar-asistencia"
                     onClick={saveAttendanceToDatabase}
                     disabled={Object.keys(attendanceData).filter(id => attendanceData[id]?.estado).length === 0 || savingAttendance || !selectedMateria}
                     className={`px-6 py-3 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
@@ -7426,6 +8344,7 @@ export default function SidebarPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
                 <select
+                  id="select-aula-asistencia-reporte"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={reportAula}
                   onChange={(e) => {
@@ -7450,6 +8369,7 @@ export default function SidebarPage() {
                     Seleccionar Materia <span className="text-gray-500 font-normal">(Opcional)</span>
                   </label>
                   <select
+                    id="select-materia-asistencia-reporte"
                     className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                     value={reportMateria}
                     onChange={(e) => {
@@ -7474,6 +8394,7 @@ export default function SidebarPage() {
               <div className="mb-6">
                 <label className="block text-sm font-medium text-gray-700 mb-2">Fecha</label>
                 <input
+                  id="input-fecha-asistencia-reporte"
                   type="date"
                   className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                   value={reportDate}
@@ -7487,6 +8408,7 @@ export default function SidebarPage() {
               {/* Botón para Buscar Reporte */}
               <div className="mb-6">
                 <button
+                  id="btn-buscar-reporte-asistencia"
                   onClick={getAttendanceReport}
                   disabled={!reportAula || !reportDate || loadingReport}
                   className={`px-6 py-3 font-medium rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 ${
@@ -7702,16 +8624,27 @@ export default function SidebarPage() {
 
           {activeTab === 'notasCertificadas' && (
             <div className="bg-white rounded-lg shadow-md p-6">
-              <h2 className="text-2xl font-bold text-gray-800 mb-6">Notas Certificadas</h2>
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-800">Notas Certificadas</h2>
+                <button
+                  id="btn-tour-notas-certificadas"
+                  onClick={startTourNotasCertificadas}
+                  className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                >
+                  Guía
+                </button>
+              </div>
 
               <div className="mb-6 flex gap-2">
                 <button
+                  id="btn-tab-agregar-estudiante"
                   className={`px-4 py-2 rounded ${notesSubTab === 'agregar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
                   onClick={() => setNotesSubTab('agregar')}
                 >
                   Agregar Estudiante
                 </button>
                 <button
+                  id="btn-tab-generar-certificado"
                   className={`px-4 py-2 rounded ${notesSubTab === 'generar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700'}`}
                   onClick={() => setNotesSubTab('generar')}
                 >
@@ -7728,6 +8661,7 @@ export default function SidebarPage() {
                       <div className="flex items-center justify-between mb-2">
                         <span className="text-sm font-semibold">Planteles</span>
                         <button
+                          id="btn-agregar-plantel"
                           type="button"
                           className="px-2 py-1 bg-blue-600 text-white rounded"
                           onClick={() => setNotaInstitucion(prev => ({ ...prev, planteles: [...(prev.planteles||[]), { numero: String((prev.planteles?.length||0)+1), nombre:'', localidad:'', ef:'' }] }))}
@@ -7780,13 +8714,13 @@ export default function SidebarPage() {
                   <fieldset className="border rounded p-4">
                     <legend className="px-2 text-sm font-semibold">Identificación del Estudiante</legend>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <input className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="Fecha Nacimiento (dd/mm/aaaa)" value={notaEst.fechaNacimiento} onChange={(e)=>setNotaEst(prev=>({...prev, fechaNacimiento:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="País" value={notaEst.pais} onChange={(e)=>setNotaEst(prev=>({...prev, pais:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="Estado" value={notaEst.estado} onChange={(e)=>setNotaEst(prev=>({...prev, estado:e.target.value}))} />
-                      <input className="border rounded p-2" placeholder="Municipio" value={notaEst.municipio} onChange={(e)=>setNotaEst(prev=>({...prev, municipio:e.target.value}))} />
+                      <input id="input-cedula-nota" className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
+                      <input id="input-nombres-nota" className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
+                      <input id="input-apellidos-nota" className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
+                      <input id="input-fecha-nacimiento-nota" className="border rounded p-2" placeholder="Fecha Nacimiento (dd/mm/aaaa)" value={notaEst.fechaNacimiento} onChange={(e)=>setNotaEst(prev=>({...prev, fechaNacimiento:e.target.value}))} />
+                      <input id="input-pais-nota" className="border rounded p-2" placeholder="País" value={notaEst.pais} onChange={(e)=>setNotaEst(prev=>({...prev, pais:e.target.value}))} />
+                      <input id="input-estado-nota" className="border rounded p-2" placeholder="Estado" value={notaEst.estado} onChange={(e)=>setNotaEst(prev=>({...prev, estado:e.target.value}))} />
+                      <input id="input-municipio-nota" className="border rounded p-2" placeholder="Municipio" value={notaEst.municipio} onChange={(e)=>setNotaEst(prev=>({...prev, municipio:e.target.value}))} />
                     </div>
                   </fieldset>
 
@@ -7797,7 +8731,7 @@ export default function SidebarPage() {
                         <div key={idx} className="border rounded p-3">
                           <div className="flex items-center gap-3 mb-2">
                             <label className="text-sm">Grado</label>
-                            <select className="border rounded p-2" value={anio.grado} onChange={(e)=>updatePlanGrado(idx, e.target.value)}>
+                            <select id={`select-grado-nota-${idx}`} className="border rounded p-2" value={anio.grado} onChange={(e)=>updatePlanGrado(idx, e.target.value)}>
                               <option value="1">1</option>
                               <option value="2">2</option>
                               <option value="3">3</option>
@@ -7862,7 +8796,7 @@ export default function SidebarPage() {
                   </fieldset>
 
                   <div className="flex gap-3">
-                    <button type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
+                    <button id="btn-guardar-nota-certificada" type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
                     {savingNotas && <span className="text-gray-500">Guardando...</span>}
                   </div>
                 </form>
@@ -7876,6 +8810,7 @@ export default function SidebarPage() {
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Formato</label>
                       <select 
+                        id="select-tipo-formato-nota"
                         className="border rounded p-2 w-full" 
                         value={notaTipoFormato} 
                         onChange={(e)=>setNotaTipoFormato(e.target.value)}
@@ -7892,11 +8827,11 @@ export default function SidebarPage() {
                   </div>
                   
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
-                    <input className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
-                    <input className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
+                    <input id="input-cedula-generar" className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
+                    <input id="input-nombres-generar" className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
+                    <input id="input-apellidos-generar" className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
                   </div>
-                  <button className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}</button>
+                  <button id="btn-generar-excel-nota" className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}</button>
                 </div>
               )}
             </div>
@@ -8151,6 +9086,14 @@ export default function SidebarPage() {
                     </div>
                     <div className="flex space-x-3">
                       <button
+                        id="btn-tour-aulas"
+                        onClick={startTourAulas}
+                        className="flex items-center px-3 py-2 bg-green-600 text-white hover:bg-green-700 rounded-md transition-colors font-medium shadow-sm"
+                      >
+                        Guía
+                      </button>
+                      <button
+                        id="btn-agregar-aula"
                         onClick={() => setShowAulaForm(true)}
                         className={`flex items-center px-4 py-2 bg-blue-600 text-white hover:bg-blue-700 rounded-md transition-colors ${ocultarElementoCSS('agregarAula')}`}
                       >
@@ -8690,6 +9633,7 @@ export default function SidebarPage() {
                               <div>
                                 <label className="block text-sm font-medium text-gray-700 mb-1">Nombre del Aula</label>
                                 <input
+                                  id="input-nombre-aula"
                                   type="text"
                                   name="nombre"
                                   value={aulaFormData.nombre}
@@ -8702,6 +9646,7 @@ export default function SidebarPage() {
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Año</label>
                                   <select
+                                    id="select-anio-aula"
                                     name="anio"
                                     value={aulaFormData.anio}
                                     onChange={handleAulaFormChange}
@@ -8715,6 +9660,7 @@ export default function SidebarPage() {
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Sección</label>
                                   <select
+                                    id="select-seccion-aula"
                                     name="seccion"
                                     value={aulaFormData.seccion}
                                     onChange={handleAulaFormChange}
@@ -8729,6 +9675,7 @@ export default function SidebarPage() {
                                 <div>
                                   <label className="block text-sm font-medium text-gray-700 mb-1">Turno</label>
                                   <select
+                                    id="select-turno-aula"
                                     name="turno"
                                     value={aulaFormData.turno}
                                     onChange={handleAulaFormChange}
@@ -8744,29 +9691,30 @@ export default function SidebarPage() {
                                     <div className="flex items-center space-x-2">
                                       <input
                                         type="radio"
-                                        id="periodoNuevo"
+                                        id="radio-periodo-nuevo"
                                         name="periodoType"
                                         value="nuevo"
                                         checked={periodoType === 'nuevo'}
                                         onChange={(e) => setPeriodoType(e.target.value)}
                                         className="text-blue-600"
                                       />
-                                      <label htmlFor="periodoNuevo">Nuevo Periodo</label>
+                                      <label htmlFor="radio-periodo-nuevo">Nuevo Periodo</label>
                                     </div>
                                     <div className="flex items-center space-x-2">
                                       <input
                                         type="radio"
-                                        id="periodoExistente"
+                                        id="radio-periodo-existente"
                                         name="periodoType"
                                         value="existente"
                                         checked={periodoType === 'existente'}
                                         onChange={(e) => setPeriodoType(e.target.value)}
                                         className="text-blue-600"
                                       />
-                                      <label htmlFor="periodoExistente">Periodo Existente</label>
+                                      <label htmlFor="radio-periodo-existente">Periodo Existente</label>
                                     </div>
                                     {periodoType === 'nuevo' ? (
                                       <input
+                                        id="input-periodo-nuevo"
                                         type="text"
                                         name="periodo"
                                         value={aulaFormData.periodo}
@@ -8777,6 +9725,7 @@ export default function SidebarPage() {
                                       />
                                     ) : (
                                       <select
+                                        id="select-periodo-existente"
                                         name="periodo"
                                         value={aulaFormData.periodo}
                                         onChange={handleAulaFormChange}
@@ -9094,6 +10043,7 @@ export default function SidebarPage() {
                                 Cancelar
                               </button>
                               <button
+                                id="btn-guardar-aula"
                                 type="submit"
                                 className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                               >
@@ -9112,13 +10062,22 @@ export default function SidebarPage() {
                 <div>
                   <div className="flex justify-between items-center mb-4">
                     <h2 className="text-xl font-semibold text-gray-800">Gestión de Profesores</h2>
-                    <button
-/* ... */
-                      onClick={() => setShowProfesorForm(true)}
-                      className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-                    >
-                      Agregar Profesor
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        id="btn-tour-docentes"
+                        onClick={startTourDocentes}
+                        className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                      >
+                        Guía
+                      </button>
+                      <button
+                        id="btn-agregar-profesor"
+                        onClick={() => setShowProfesorForm(true)}
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                      >
+                        Agregar Profesor
+                      </button>
+                    </div>
                   </div>
 
                   
@@ -9163,7 +10122,7 @@ export default function SidebarPage() {
                             <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                             <input
                               type="text"
-                              id="nombre"
+                              id="input-nombre-profesor"
                               name="nombre"
                               required
                               placeholder='Indique el nombre del profesor'
@@ -9176,7 +10135,7 @@ export default function SidebarPage() {
                             <label htmlFor="apellido" className="block text-sm font-medium text-gray-700 mb-1">Apellido *</label>
                             <input
                               type="text"
-                              id="apellido"
+                              id="input-apellido-profesor"
                               name="apellido"
                               required
                                                             placeholder='Indique el apellido del profesor'
@@ -9189,7 +10148,7 @@ export default function SidebarPage() {
                             <label htmlFor="cedula" className="block text-sm font-medium text-gray-700 mb-1">Cédula</label>
                             <input
                               type="text"
-                              id="cedula"
+                              id="input-cedula-profesor"
                               name="cedula"
                               placeholder='Indique la cedula del profesor'
                               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -9201,7 +10160,7 @@ export default function SidebarPage() {
                             <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">Email</label>
                             <input
                               type="email"
-                              id="email"
+                              id="input-email-profesor"
                               name="email"
                                                             placeholder='Indique el correo del profesor'
                               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -9213,7 +10172,7 @@ export default function SidebarPage() {
                             <label htmlFor="telefono" className="block text-sm font-medium text-gray-700 mb-1">Teléfono</label>
                             <input
                               type="text"
-                              id="telefono"
+                              id="input-telefono-profesor"
                               name="telefono"
                                                             placeholder='Indique el telefono del profesor'
                               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -9225,7 +10184,7 @@ export default function SidebarPage() {
                             <label htmlFor="especialidad" className="block text-sm font-medium text-gray-700 mb-1">Especialidad</label>
                             <input
                               type="text"
-                              id="especialidad"
+                              id="input-especialidad-profesor"
                               name="especialidad"
                               placeholder='Indique la especialidad del profesor'
                               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
@@ -9237,7 +10196,7 @@ export default function SidebarPage() {
                             <label htmlFor="fechaIngreso" className="block text-sm font-medium text-gray-700 mb-1">Fecha de Ingreso</label>
                             <input
                               type="date"
-                              id="fechaIngreso"
+                              id="input-fecha-ingreso-profesor"
                               name="fechaIngreso"
                               className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
                               value={profesorFormData.fechaIngreso || ''}
@@ -9263,7 +10222,7 @@ export default function SidebarPage() {
                                   <input 
                                     type="checkbox" 
                                     name="estado" 
-                                    id="estado-form" 
+                                    id="input-estado-profesor" 
                                     checked={profesorFormData.estado !== 0}
                                     onChange={(e) => setProfesorFormData(prev => ({ ...prev, estado: e.target.checked ? 1 : 0 }))}
                                     className="absolute block w-6 h-6 rounded-full bg-white border-2 appearance-none cursor-pointer shadow-md"
@@ -9275,7 +10234,7 @@ export default function SidebarPage() {
                                     }}
                                   />
                                   <label 
-                                    htmlFor="estado-form" 
+                                    htmlFor="input-estado-profesor" 
                                     className="block overflow-hidden h-6 rounded-full cursor-pointer"
                                     style={{
                                       backgroundColor: profesorFormData.estado !== 0 ? '#10B981' : '#EF4444',
@@ -9309,6 +10268,7 @@ export default function SidebarPage() {
                             Cancelar
                           </button>
                           <button
+                            id="btn-guardar-profesor"
                             type="submit"
                             className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
                           >
@@ -9664,29 +10624,42 @@ export default function SidebarPage() {
                       </div>
                       <h3 className="text-xl font-bold text-gray-800 bg-gradient-to-r from-blue-600 to-blue-400 bg-clip-text text-transparent">Gestión de Alumnos</h3>
                     </div>
-                    <button
-                      onClick={() => {
-                        setFormData({
-                          nombre: '',
-                          apellido: '',
-                          cedula: 'N/P',
-                          fechaNacimiento: '',
-                          lugarNacimiento: '',
-                          sexo: 'Otro',
-                          ef: '',
-                          edad: 0,
-                          esMenorDeEdad: false,
-                          modoEdicion: false
-                        });
-                        setShowStudentForm(true);
-                      }}
-                      className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg flex items-center"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
-                      </svg>
-                      Agregar Alumno
-                    </button>
+                    <div className="flex gap-2">
+                      <button
+                        id="btn-tour-alumnos"
+                        onClick={startTourAlumnos}
+                        className="px-3 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 transition-colors font-medium shadow-sm flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        Guía
+                      </button>
+                      <button
+                        id="btn-agregar-alumno"
+                        onClick={() => {
+                          setFormData({
+                            nombre: '',
+                            apellido: '',
+                            cedula: 'N/P',
+                            fechaNacimiento: '',
+                            lugarNacimiento: '',
+                            sexo: 'Otro',
+                            ef: '',
+                            edad: 0,
+                            esMenorDeEdad: false,
+                            modoEdicion: false
+                          });
+                          setShowStudentForm(true);
+                        }}
+                        className="px-4 py-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white rounded-lg shadow-md hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg flex items-center"
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 6v6m0 0v6m0-6h6m-6 0H6" />
+                        </svg>
+                        Agregar Alumno
+                      </button>
+                    </div>
                   </div>
                   
                   {/* Formulario de Agregar/Editar Alumno */}
@@ -9720,6 +10693,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <input
+                              id="input-nombre-alumno"
                               type="text"
                               name="nombre"
                               value={formData.nombre || ''}
@@ -9742,6 +10716,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <input
+                              id="input-apellido-alumno"
                               type="text"
                               name="apellido"
                               value={formData.apellido || ''}
@@ -9764,6 +10739,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <input
+                              id="input-cedula-alumno"
                               type="text"
                               name="cedula"
                               value={formData.cedula || ''}
@@ -9785,6 +10761,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <input
+                              id="input-fecha-nacimiento-alumno"
                               type="date"
                               name="fechaNacimiento"
                               value={formData.fechaNacimiento || ''}
@@ -9811,6 +10788,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <select
+                              id="select-lugar-nacimiento-alumno"
                               name="lugarNacimiento"
                               value={formData.lugarNacimiento || ''}
                               onChange={handleFormChange}
@@ -9860,6 +10838,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <select
+                              id="select-sexo-alumno"
                               name="sexo"
                               value={formData.sexo || 'Otro'}
                               onChange={handleFormChange}
@@ -9887,6 +10866,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <input
+                              id="input-ef-alumno"
                               type="text"
                               name="ef"
                               value={formData.ef || ''}
@@ -9912,6 +10892,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <select
+                              id="select-anio-alumno"
                               name="anio"
                               value={formData.anio || '1'}
                               onChange={handleFormChange}
@@ -9941,6 +10922,7 @@ export default function SidebarPage() {
                           </label>
                           <div className="relative">
                             <select
+                              id="select-seccion-alumno"
                               name="seccion"
                               value={formData.seccion || 'A'}
                               onChange={handleFormChange}
@@ -10018,6 +11000,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id="input-nombre-representante"
                                 type="text"
                                 name="representanteNombre"
                                 value={formData.representanteNombre || ''}
@@ -10042,6 +11025,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id="input-apellido-representante"
                                 type="text"
                                 name="representanteApellido"
                                 value={formData.representanteApellido || ''}
@@ -10066,6 +11050,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id="input-cedula-representante"
                                 type="text"
                                 name="representanteCedula"
                                 value={formData.representanteCedula || ''}
@@ -10090,6 +11075,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id="input-telefono-representante"
                                 type="tel"
                                 name="representanteTelefono"
                                 value={formData.representanteTelefono || ''}
@@ -10114,6 +11100,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <input
+                                id="input-correo-representante"
                                 type="email"
                                 name="representanteCorreo"
                                 value={formData.representanteCorreo || ''}
@@ -10137,6 +11124,7 @@ export default function SidebarPage() {
                             </label>
                             <div className="relative">
                               <select
+                                id="select-parentesco-representante"
                                 name="representanteParentesco"
                                 value={formData.representanteParentesco || 'Padre'}
                                 onChange={handleFormChange}
@@ -10201,6 +11189,7 @@ export default function SidebarPage() {
                           Cancelar
                         </button>
                         <button
+                          id="btn-guardar-alumno"
                           type="submit"
                           className="px-5 py-2 bg-blue-600 text-white rounded-lg shadow-md hover:bg-blue-700 transition-all duration-300 transform hover:-translate-y-1 hover:shadow-lg flex items-center"
                         >

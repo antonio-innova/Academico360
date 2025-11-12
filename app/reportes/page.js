@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
+import { loadDriver } from '../utils/driverLoader';
 
 // Componente Modal para mostrar el PDF
 const PDFModal = ({ isOpen, onClose, pdfUrl }) => {
@@ -170,6 +171,161 @@ export default function ReportesPage() {
     return () => clearTimeout(timer);
   }, []);
 
+  // Función para iniciar el tour de Generación de Reportes
+  const startTourReportesPage = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#select-anio-reporte-excel',
+          popover: {
+            title: '📊 Paso 1: Reporte Excel de Estudiantes - Filtro por Año',
+            description: 'Selecciona el año escolar para filtrar los reportes. Puedes elegir un año específico o "Todos los años" para incluir todos los grados. Este filtro ayuda a encontrar aulas específicas o generar reportes por grado.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-seccion-reporte-excel',
+          popover: {
+            title: '📋 Paso 2: Filtro por Sección',
+            description: 'Selecciona la sección (A o B) para filtrar los reportes. Puedes combinarlo con el filtro de año para obtener reportes más específicos. Si no seleccionas ninguna sección, se incluirán todas.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-aula-reporte-excel',
+          popover: {
+            title: '🏫 Paso 3: Seleccionar Aula',
+            description: 'Selecciona el aula específica para la cual deseas generar el reporte. Las aulas disponibles se filtrarán automáticamente según los filtros de año y sección que hayas seleccionado. Si no hay aulas disponibles, puedes generar un reporte de todos los estudiantes que coincidan con los filtros.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-momento-reporte-excel',
+          popover: {
+            title: '📅 Paso 4: Seleccionar Momento',
+            description: 'Selecciona el momento evaluativo (1er, 2do, 3er Momento o Final) para el cual deseas generar el reporte. El reporte incluirá todas las calificaciones y actividades de ese período académico.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-descargar-reporte-excel',
+          popover: {
+            title: '💾 Paso 5: Descargar Reporte Excel',
+            description: 'Haz clic aquí para generar y descargar el reporte Excel. El sistema generará un archivo con todas las notas de los estudiantes del aula seleccionada para el momento elegido. Si no seleccionaste un aula pero aplicaste filtros, generará un reporte de todos los estudiantes que coincidan.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-aula-sabana',
+          popover: {
+            title: '📄 Paso 6: Generación de Sábana - Seleccionar Aula',
+            description: 'En esta sección puedes generar una "sábana" (planilla) de calificaciones. Selecciona el aula para la cual deseas generar la sábana. La sábana replica la estructura de EV1..EV5 y NF por materia.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-momento-sabana',
+          popover: {
+            title: '📊 Paso 7: Seleccionar Momento (Sábana)',
+            description: 'Selecciona el momento evaluativo para la sábana. Si una materia está bloqueada para el momento seleccionado, sus casillas aparecerán vacías en el Excel generado.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-descargar-sabana',
+          popover: {
+            title: '📥 Paso 8: Descargar Sábana Excel',
+            description: 'Haz clic aquí para generar y descargar la sábana en formato Excel. Este archivo mostrará todas las calificaciones organizadas por materia con la estructura EV1..EV5 y NF.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-anio-reporte-completo',
+          popover: {
+            title: '📋 Paso 9: Reporte Completo - Filtro por Año',
+            description: 'Este reporte incluye información completa de estudiantes y sus representantes. Selecciona el año para filtrar el reporte, o deja "Todos los años" para incluir todos los grados.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#select-seccion-reporte-completo',
+          popover: {
+            title: '📝 Paso 10: Filtro por Sección (Reporte Completo)',
+            description: 'Selecciona la sección para filtrar el reporte completo. Puedes combinarlo con el filtro de año para generar reportes específicos por grado y sección.',
+            side: 'right',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-descargar-reporte-completo',
+          popover: {
+            title: '💼 Paso 11: Descargar Reporte Completo',
+            description: 'Haz clic aquí para generar el reporte completo que incluye datos del estudiante (cédula, nombre, apellido, fecha de nacimiento, edad, género, año, sección) y datos del representante (cédula, nombre, apellido, teléfono, correo, parentesco).',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#btn-descargar-reporte-docentes',
+          popover: {
+            title: '👨‍🏫 Paso 12: Descargar Lista de Docentes',
+            description: 'Haz clic aquí para generar y descargar un reporte Excel con la lista completa de todos los docentes registrados en el sistema, incluyendo sus datos de contacto y estado (activo/bloqueado).',
+            side: 'top',
+            align: 'start'
+          }
+        }
+      ];
+
+      // Filtrar los pasos que existen en el DOM
+      const validSteps = [];
+      for (const step of stepDefinitions) {
+        if (typeof window === 'undefined') continue;
+        if (typeof step.element === 'string') {
+          const element = document.querySelector(step.element);
+          if (element) {
+            validSteps.push(step);
+          }
+        }
+      }
+
+      if (validSteps.length === 0) {
+        alert('Por favor, asegúrate de estar en la página de Reportes para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps: validSteps,
+        allowClose: true,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 5,
+        popoverClass: 'driverjs-theme',
+        popoverOffset: 20
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de reportes:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
   // Función para generar reportes CSV
   const handleGenerarReporteCSV = async (tipo) => {
     try {
@@ -327,12 +483,24 @@ export default function ReportesPage() {
               <p className="text-gray-500">Exporta datos de estudiantes y docentes en formato CSV</p>
             </div>
           </div>
-          <Link href="/sidebar" className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-md flex items-center">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
-            </svg>
-            Volver al Dashboard
-          </Link>
+          <div className="flex gap-2">
+            <button
+              id="btn-tour-reportes-page"
+              onClick={startTourReportesPage}
+              className="px-4 py-3 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors shadow-md flex items-center font-medium"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Guía
+            </button>
+            <Link href="/sidebar" className="px-6 py-3 bg-gray-700 text-white rounded-lg hover:bg-gray-800 transition-colors shadow-md flex items-center">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 19l-7-7m0 0l7-7m-7 7h18" />
+              </svg>
+              Volver al Dashboard
+            </Link>
+          </div>
         </div>
         
         {/* Mensajes de éxito o error con diseño mejorado */}
@@ -370,6 +538,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Año</label>
               <select 
+                id="select-anio-reporte-excel"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={anioSeleccionado}
                 onChange={(e) => setAnioSeleccionado(e.target.value)}
@@ -386,6 +555,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Sección</label>
               <select 
+                id="select-seccion-reporte-excel"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={seccionSeleccionada}
                 onChange={(e) => setSeccionSeleccionada(e.target.value)}
@@ -401,6 +571,7 @@ export default function ReportesPage() {
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
               <select 
+                id="select-aula-reporte-excel"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={aulaSeleccionada}
                 onChange={(e) => setAulaSeleccionada(e.target.value)}
@@ -424,6 +595,7 @@ export default function ReportesPage() {
             <div className="col-span-1">
               <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Momento</label>
               <select 
+                id="select-momento-reporte-excel"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={momento}
                 onChange={(e) => setMomento(e.target.value)}
@@ -437,6 +609,7 @@ export default function ReportesPage() {
             
             <div className="col-span-1 flex items-end">
               <button
+                id="btn-descargar-reporte-excel"
                 onClick={() => {
                   // Si no hay aula seleccionada pero hay filtros aplicados, generar reporte de todos los estudiantes
                   if (!aulaSeleccionada && (anioSeleccionado || seccionSeleccionada)) {
@@ -555,6 +728,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
               <select
+                id="select-aula-sabana"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={aulaSeleccionada}
                 onChange={(e) => setAulaSeleccionada(e.target.value)}
@@ -569,6 +743,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Momento</label>
               <select
+                id="select-momento-sabana"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 value={momentoSabana}
                 onChange={(e) => setMomentoSabana(e.target.value)}
@@ -581,6 +756,7 @@ export default function ReportesPage() {
 
             <div className="flex items-end">
               <button
+                id="btn-descargar-sabana"
                 onClick={async () => {
                   if (!aulaSeleccionada) return;
                   setGenerando(true);
@@ -633,6 +809,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Año</label>
               <select 
+                id="select-anio-reporte-completo"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 value={anioSeleccionado}
                 onChange={(e) => setAnioSeleccionado(e.target.value)}
@@ -649,6 +826,7 @@ export default function ReportesPage() {
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-2">Filtrar por Sección</label>
               <select 
+                id="select-seccion-reporte-completo"
                 className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
                 value={seccionSeleccionada}
                 onChange={(e) => setSeccionSeleccionada(e.target.value)}
@@ -662,6 +840,7 @@ export default function ReportesPage() {
           
           <div className="flex justify-center">
             <button
+              id="btn-descargar-reporte-completo"
               onClick={() => {
                 // Construir la URL para descargar el reporte completo
                 const params = new URLSearchParams();
@@ -723,6 +902,7 @@ export default function ReportesPage() {
           
           <div className="flex justify-center">
             <button
+              id="btn-descargar-reporte-docentes"
               onClick={() => {
                 // Construir la URL para descargar el Excel de docentes
                 const params = new URLSearchParams();
