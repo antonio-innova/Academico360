@@ -71,6 +71,109 @@ const PDFModal = ({ isOpen, onClose, pdfUrl }) => {
   );
 };
 
+// Componente Modal para previsualizar Excel
+const ExcelPreviewModal = ({ isOpen, onClose, excelData, fileName, onDownload }) => {
+  console.log('🎨 ExcelPreviewModal render:', { isOpen, hasData: !!excelData, fileName });
+  
+  if (!isOpen || !excelData) {
+    console.log('❌ Modal NO renderiza - isOpen:', isOpen, 'excelData:', !!excelData);
+    return null;
+  }
+  
+  console.log('✅ Modal SÍ renderiza - Mostrando datos');
+
+  return (
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full h-[95vh] max-w-7xl shadow-2xl transform scale-100 flex flex-col">
+        <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl">
+          <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
+            </svg>
+            <span>Vista previa del Excel - {fileName}</span>
+          </h3>
+          <button
+            onClick={onClose}
+            className="text-white opacity-75 hover:opacity-100 transition-opacity duration-200 p-2 rounded-full hover:bg-green-500"
+            aria-label="Cerrar modal"
+          >
+            <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        
+        <div className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 overflow-auto">
+          <div className="bg-white dark:bg-gray-800 rounded-xl shadow-inner overflow-x-auto">
+            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+              <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
+                <tr>
+                  {excelData.headers?.map((header, index) => (
+                    <th
+                      key={index}
+                      className="px-4 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600 whitespace-nowrap"
+                    >
+                      {header}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="bg-white dark:bg-gray-800 divide-y divide-gray-200 dark:divide-gray-700">
+                {excelData.rows?.slice(0, 100).map((row, rowIndex) => (
+                  <tr key={rowIndex} className={rowIndex % 2 === 0 ? 'bg-white dark:bg-gray-800' : 'bg-gray-50 dark:bg-gray-750'}>
+                    {row.map((cell, cellIndex) => (
+                      <td
+                        key={cellIndex}
+                        className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap"
+                      >
+                        {cell !== null && cell !== undefined ? String(cell) : ''}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {excelData.rows?.length > 100 && (
+              <div className="px-6 py-4 bg-yellow-50 dark:bg-yellow-900 border-t border-yellow-200 dark:border-yellow-700">
+                <p className="text-sm text-yellow-800 dark:text-yellow-200">
+                  ⚠️ Mostrando las primeras 100 filas de {excelData.rows.length} en total. Descarga el archivo para ver todos los datos.
+                </p>
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 rounded-b-2xl flex justify-between items-center">
+          <div className="text-sm text-gray-500 dark:text-gray-400">
+            <p>Filas totales: <span className="font-bold">{excelData.rows?.length || 0}</span></p>
+            <p className="text-xs mt-1">Presiona ESC para cerrar</p>
+          </div>
+          <div className="flex space-x-3">
+            <button
+              onClick={onDownload}
+              className="inline-flex items-center px-6 py-3 bg-green-600 hover:bg-green-700 text-white text-sm font-medium rounded-lg transition-colors duration-200 shadow-sm hover:shadow-md space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+              </svg>
+              <span>Descargar Excel</span>
+            </button>
+            <button
+              onClick={onClose}
+              className="inline-flex items-center px-4 py-2 border border-gray-300 dark:border-gray-600 text-sm font-medium rounded-lg text-gray-700 dark:text-gray-200 bg-white dark:bg-gray-700 hover:bg-gray-50 dark:hover:bg-gray-600 transition-colors duration-200 shadow-sm hover:shadow-md space-x-2"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+              <span>Cerrar</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export default function ReportesPage() {
   const [generando, setGenerando] = useState(false);
   const [error, setError] = useState(null);
@@ -80,6 +183,12 @@ export default function ReportesPage() {
   const [showConfetti, setShowConfetti] = useState(false);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [pdfUrl, setPdfUrl] = useState('');
+  
+  // Estados para el modal de Excel
+  const [isExcelModalOpen, setIsExcelModalOpen] = useState(false);
+  const [excelPreviewData, setExcelPreviewData] = useState(null);
+  const [excelFileName, setExcelFileName] = useState('');
+  const [pendingDownload, setPendingDownload] = useState(null);
   
   // Estados para la sección de Reporte Excel
   const [aulas, setAulas] = useState([]);
@@ -150,6 +259,83 @@ export default function ReportesPage() {
       }
     } else {
       setAulaSeleccionada('');
+    }
+  };
+
+  // Función para parsear Excel y mostrar previsualización
+  const parseExcelAndPreview = async (blob, fileName) => {
+    try {
+      console.log('🔍 INICIANDO PREVIEW - fileName:', fileName);
+      console.log('🔍 Blob size:', blob.size);
+      setGenerando(true);
+      
+      // Leer el archivo como ArrayBuffer
+      const arrayBuffer = await blob.arrayBuffer();
+      console.log('✅ ArrayBuffer creado');
+      
+      // Importar la librería xlsx dinámicamente
+      const XLSX = await import('xlsx');
+      
+      // Leer el workbook
+      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+      
+      // Obtener la primera hoja
+      const firstSheetName = workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[firstSheetName];
+      
+      // Convertir a JSON
+      const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
+      
+      if (jsonData.length === 0) {
+        throw new Error('El archivo Excel está vacío');
+      }
+      
+      // Separar headers y rows
+      const headers = jsonData[0];
+      const rows = jsonData.slice(1);
+      
+      // Establecer datos para la previsualización
+      console.log('✅ Estableciendo datos del modal');
+      console.log('📊 Headers:', headers);
+      console.log('📊 Rows:', rows.length);
+      setExcelPreviewData({ headers, rows });
+      setExcelFileName(fileName);
+      setIsExcelModalOpen(true);
+      console.log('✅ Modal abierto: isExcelModalOpen = true');
+      
+    } catch (error) {
+      console.error('❌ Error al parsear Excel:', error);
+      setError(`Error al previsualizar el archivo: ${error.message}`);
+    } finally {
+      setGenerando(false);
+    }
+  };
+  
+  // Función para descargar el archivo Excel pendiente
+  const handleDownloadExcel = () => {
+    if (pendingDownload) {
+      const { blob, fileName } = pendingDownload;
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+      
+      // Cerrar modal y limpiar
+      setIsExcelModalOpen(false);
+      setPendingDownload(null);
+      setExcelPreviewData(null);
+      
+      // Mostrar mensaje de éxito
+      setMensaje(`Archivo ${fileName} descargado con éxito`);
+      setShowConfetti(true);
+      setTimeout(() => {
+        setMensaje('');
+        setShowConfetti(false);
+      }, 3000);
     }
   };
 
@@ -610,71 +796,74 @@ export default function ReportesPage() {
             <div className="col-span-1 flex items-end">
               <button
                 id="btn-descargar-reporte-excel"
-                onClick={() => {
-                  // Si no hay aula seleccionada pero hay filtros aplicados, generar reporte de todos los estudiantes
-                  if (!aulaSeleccionada && (anioSeleccionado || seccionSeleccionada)) {
-                    // Construir la URL para descargar el Excel de todos los estudiantes con filtros
-                    const params = new URLSearchParams();
-                    params.append('tipoReporte', 'todosEstudiantes');
+                onClick={async () => {
+                  try {
+                    setGenerando(true);
+                    setError(null);
                     
-                    // Agregar filtros si están seleccionados
-                    if (anioSeleccionado) {
-                      params.append('anio', anioSeleccionado);
+                    let params, fileName, tipoDesc;
+                    
+                    // Si no hay aula seleccionada pero hay filtros aplicados, generar reporte de todos los estudiantes
+                    if (!aulaSeleccionada && (anioSeleccionado || seccionSeleccionada)) {
+                      // Construir la URL para descargar el Excel de todos los estudiantes con filtros
+                      params = new URLSearchParams();
+                      params.append('tipoReporte', 'todosEstudiantes');
+                      
+                      // Agregar filtros si están seleccionados
+                      if (anioSeleccionado) {
+                        params.append('anio', anioSeleccionado);
+                      }
+                      if (seccionSeleccionada) {
+                        params.append('seccion', seccionSeleccionada);
+                      }
+                      
+                      tipoDesc = 'Estudiantes';
+                      fileName = `Reporte_Estudiantes${anioSeleccionado ? '_' + anioSeleccionado + 'Año' : ''}${seccionSeleccionada ? '_Seccion' + seccionSeleccionada : ''}.xlsx`;
+                    } else {
+                      if (!aulaSeleccionada) {
+                        setError('Por favor, selecciona un aula o aplica filtros de año/sección');
+                        setGenerando(false);
+                        return;
+                      }
+                      
+                      // Construir la URL para descargar el Excel
+                      params = new URLSearchParams();
+                      params.append('tipoReporte', 'notasPorAula');
+                      params.append('aulaId', aulaSeleccionada);
+                      params.append('momento', momento);
+                      
+                      // Agregar filtros si están seleccionados
+                      if (anioSeleccionado) {
+                        params.append('anio', anioSeleccionado);
+                      }
+                      if (seccionSeleccionada) {
+                        params.append('seccion', seccionSeleccionada);
+                      }
+                      
+                      tipoDesc = `Notas_Momento${momento}`;
+                      fileName = `Reporte_${tipoDesc}.xlsx`;
                     }
-                    if (seccionSeleccionada) {
-                      params.append('seccion', seccionSeleccionada);
+                    
+                    // Obtener el Excel mediante fetch
+                    const response = await fetch(`/api/reportes/excel?${params.toString()}`);
+                    
+                    if (!response.ok) {
+                      throw new Error('Error al generar el reporte');
                     }
                     
-                    // Redirigir a la URL de descarga
-                    window.location.href = `/api/reportes/excel?${params.toString()}`;
+                    const blob = await response.blob();
                     
-                    // Mostrar mensaje de éxito
-                    let mensajeFiltros = '';
-                    if (anioSeleccionado || seccionSeleccionada) {
-                      mensajeFiltros = ` (filtrado por ${anioSeleccionado ? `${anioSeleccionado}° año` : ''}${anioSeleccionado && seccionSeleccionada ? ' y ' : ''}${seccionSeleccionada ? `sección ${seccionSeleccionada}` : ''})`;
-                    }
-                    setMensaje(`Reporte de estudiantes generado con éxito${mensajeFiltros}`);
-                    setShowConfetti(true);
+                    // Guardar el blob para descarga posterior
+                    setPendingDownload({ blob, fileName });
                     
-                    // Limpiar mensaje después de 5 segundos
-                    setTimeout(() => {
-                      setMensaje('');
-                      setShowConfetti(false);
-                    }, 5000);
-                    return;
+                    // Parsear y mostrar previsualización
+                    await parseExcelAndPreview(blob, fileName);
+                    
+                  } catch (error) {
+                    console.error('Error:', error);
+                    setError(`Error al generar el reporte: ${error.message}`);
+                    setGenerando(false);
                   }
-                  
-                  if (!aulaSeleccionada) {
-                    setError('Por favor, selecciona un aula o aplica filtros de año/sección');
-                    return;
-                  }
-                  
-                  // Construir la URL para descargar el Excel
-                  const params = new URLSearchParams();
-                  params.append('tipoReporte', 'notasPorAula');
-                  params.append('aulaId', aulaSeleccionada);
-                  params.append('momento', momento);
-                  
-                  // Agregar filtros si están seleccionados
-                  if (anioSeleccionado) {
-                    params.append('anio', anioSeleccionado);
-                  }
-                  if (seccionSeleccionada) {
-                    params.append('seccion', seccionSeleccionada);
-                  }
-                  
-                  // Redirigir a la URL de descarga
-                  window.location.href = `/api/reportes/excel?${params.toString()}`;
-                  
-                  // Mostrar mensaje de éxito
-                  setMensaje(`Reporte de notas del momento ${momento} generado con éxito`);
-                  setShowConfetti(true);
-                  
-                  // Limpiar mensaje después de 5 segundos
-                  setTimeout(() => {
-                    setMensaje('');
-                    setShowConfetti(false);
-                  }, 5000);
                 }}
                 className="w-full px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg flex items-center justify-center"
                 disabled={generando}
@@ -758,25 +947,32 @@ export default function ReportesPage() {
               <button
                 id="btn-descargar-sabana"
                 onClick={async () => {
-                  if (!aulaSeleccionada) return;
+                  if (!aulaSeleccionada) {
+                    setError('Por favor, selecciona un aula');
+                    return;
+                  }
+                  
                   setGenerando(true);
+                  setError(null);
+                  
                   try {
                     const params = new URLSearchParams({ aulaId: aulaSeleccionada, momento: momentoSabana });
                     const resp = await fetch(`/api/reportes/sabana?${params.toString()}`);
+                    
                     if (!resp.ok) throw new Error('No se pudo generar la sábana');
+                    
                     const blob = await resp.blob();
-                    const url = window.URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `SABANA_${momentoSabana}M.xlsx`;
-                    document.body.appendChild(a);
-                    a.click();
-                    a.remove();
-                    window.URL.revokeObjectURL(url);
+                    const fileName = `SABANA_${momentoSabana}M.xlsx`;
+                    
+                    // Guardar el blob para descarga posterior
+                    setPendingDownload({ blob, fileName });
+                    
+                    // Parsear y mostrar previsualización
+                    await parseExcelAndPreview(blob, fileName);
+                    
                   } catch (e) {
                     console.error(e);
                     setError(e.message || 'Error generando la sábana');
-                  } finally {
                     setGenerando(false);
                   }
                 }}
@@ -841,37 +1037,47 @@ export default function ReportesPage() {
           <div className="flex justify-center">
             <button
               id="btn-descargar-reporte-completo"
-              onClick={() => {
-                // Construir la URL para descargar el reporte completo
-                const params = new URLSearchParams();
-                params.append('tipoReporte', 'completo');
-                
-                // Agregar filtros si están seleccionados
-                if (anioSeleccionado) {
-                  params.append('anio', anioSeleccionado);
+              onClick={async () => {
+                try {
+                  setGenerando(true);
+                  setError(null);
+                  
+                  // Construir la URL para descargar el reporte completo
+                  const params = new URLSearchParams();
+                  params.append('tipoReporte', 'completo');
+                  
+                  // Agregar filtros si están seleccionados
+                  if (anioSeleccionado) {
+                    params.append('anio', anioSeleccionado);
+                  }
+                  if (seccionSeleccionada) {
+                    params.append('seccion', seccionSeleccionada);
+                  }
+                  
+                  // Obtener el Excel mediante fetch
+                  const response = await fetch(`/api/reportes/excel?${params.toString()}`);
+                  
+                  if (!response.ok) {
+                    throw new Error('Error al generar el reporte completo');
+                  }
+                  
+                  const blob = await response.blob();
+                  const fileName = `Reporte_Completo${anioSeleccionado ? '_' + anioSeleccionado + 'Año' : ''}${seccionSeleccionada ? '_Seccion' + seccionSeleccionada : ''}.xlsx`;
+                  
+                  // Guardar el blob para descarga posterior
+                  setPendingDownload({ blob, fileName });
+                  
+                  // Parsear y mostrar previsualización
+                  await parseExcelAndPreview(blob, fileName);
+                  
+                } catch (error) {
+                  console.error('Error:', error);
+                  setError(`Error al generar el reporte: ${error.message}`);
+                  setGenerando(false);
                 }
-                if (seccionSeleccionada) {
-                  params.append('seccion', seccionSeleccionada);
-                }
-                
-                // Redirigir a la URL de descarga
-                window.location.href = `/api/reportes/excel?${params.toString()}`;
-                
-                // Mostrar mensaje de éxito
-                let mensajeFiltros = '';
-                if (anioSeleccionado || seccionSeleccionada) {
-                  mensajeFiltros = ` (filtrado por ${anioSeleccionado ? `${anioSeleccionado}° año` : ''}${anioSeleccionado && seccionSeleccionada ? ' y ' : ''}${seccionSeleccionada ? `sección ${seccionSeleccionada}` : ''})`;
-                }
-                setMensaje(`Reporte completo generado con éxito${mensajeFiltros}`);
-                setShowConfetti(true);
-                
-                // Limpiar mensaje después de 5 segundos
-                setTimeout(() => {
-                  setMensaje('');
-                  setShowConfetti(false);
-                }, 5000);
               }}
               className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg flex items-center justify-center w-80"
+              disabled={generando}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -903,25 +1109,39 @@ export default function ReportesPage() {
           <div className="flex justify-center">
             <button
               id="btn-descargar-reporte-docentes"
-              onClick={() => {
-                // Construir la URL para descargar el Excel de docentes
-                const params = new URLSearchParams();
-                params.append('tipoReporte', 'docentes');
-                
-                // Redirigir a la URL de descarga
-                window.location.href = `/api/reportes/excel?${params.toString()}`;
-                
-                // Mostrar mensaje de éxito
-                setMensaje(`Reporte de docentes generado con éxito`);
-                setShowConfetti(true);
-                
-                // Limpiar mensaje después de 5 segundos
-                setTimeout(() => {
-                  setMensaje('');
-                  setShowConfetti(false);
-                }, 5000);
+              onClick={async () => {
+                try {
+                  setGenerando(true);
+                  setError(null);
+                  
+                  // Construir la URL para descargar el Excel de docentes
+                  const params = new URLSearchParams();
+                  params.append('tipoReporte', 'docentes');
+                  
+                  // Obtener el Excel mediante fetch
+                  const response = await fetch(`/api/reportes/excel?${params.toString()}`);
+                  
+                  if (!response.ok) {
+                    throw new Error('Error al generar el reporte de docentes');
+                  }
+                  
+                  const blob = await response.blob();
+                  const fileName = 'Reporte_Docentes.xlsx';
+                  
+                  // Guardar el blob para descarga posterior
+                  setPendingDownload({ blob, fileName });
+                  
+                  // Parsear y mostrar previsualización
+                  await parseExcelAndPreview(blob, fileName);
+                  
+                } catch (error) {
+                  console.error('Error:', error);
+                  setError(`Error al generar el reporte: ${error.message}`);
+                  setGenerando(false);
+                }
               }}
               className="px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-medium rounded-lg transition-colors duration-200 shadow-md hover:shadow-lg flex items-center justify-center w-64"
+              disabled={generando}
             >
               <svg className="w-5 h-5 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
@@ -954,35 +1174,44 @@ export default function ReportesPage() {
                 <strong>Nota:</strong> Puedes usar los filtros de año y sección arriba para generar reportes específicos.
               </p>
               <button
-                onClick={() => {
-                  // Construir la URL para descargar el Excel de estudiantes
-                  const params = new URLSearchParams();
-                  params.append('tipoReporte', 'todosEstudiantes');
-                  
-                  // Agregar filtros si están seleccionados
-                  if (anioSeleccionado) {
-                    params.append('anio', anioSeleccionado);
+                onClick={async () => {
+                  try {
+                    setGenerando(true);
+                    setError(null);
+                    
+                    // Construir la URL para descargar el Excel de estudiantes
+                    const params = new URLSearchParams();
+                    params.append('tipoReporte', 'todosEstudiantes');
+                    
+                    // Agregar filtros si están seleccionados
+                    if (anioSeleccionado) {
+                      params.append('anio', anioSeleccionado);
+                    }
+                    if (seccionSeleccionada) {
+                      params.append('seccion', seccionSeleccionada);
+                    }
+                    
+                    // Obtener el Excel mediante fetch
+                    const response = await fetch(`/api/reportes/excel?${params.toString()}`);
+                    
+                    if (!response.ok) {
+                      throw new Error('Error al generar el reporte de estudiantes');
+                    }
+                    
+                    const blob = await response.blob();
+                    const fileName = `Reporte_Estudiantes${anioSeleccionado ? '_' + anioSeleccionado + 'Año' : ''}${seccionSeleccionada ? '_Seccion' + seccionSeleccionada : ''}.xlsx`;
+                    
+                    // Guardar el blob para descarga posterior
+                    setPendingDownload({ blob, fileName });
+                    
+                    // Parsear y mostrar previsualización
+                    await parseExcelAndPreview(blob, fileName);
+                    
+                  } catch (error) {
+                    console.error('Error:', error);
+                    setError(`Error al generar el reporte: ${error.message}`);
+                    setGenerando(false);
                   }
-                  if (seccionSeleccionada) {
-                    params.append('seccion', seccionSeleccionada);
-                  }
-                  
-                  // Redirigir a la URL de descarga
-                  window.location.href = `/api/reportes/excel?${params.toString()}`;
-                  
-                  // Mostrar mensaje de éxito
-                  let mensajeFiltros = '';
-                  if (anioSeleccionado || seccionSeleccionada) {
-                    mensajeFiltros = ` (filtrado por ${anioSeleccionado ? `${anioSeleccionado}° año` : ''}${anioSeleccionado && seccionSeleccionada ? ' y ' : ''}${seccionSeleccionada ? `sección ${seccionSeleccionada}` : ''})`;
-                  }
-                  setMensaje(`Reporte de estudiantes generado con éxito${mensajeFiltros}`);
-                  setShowConfetti(true);
-                  
-                  // Limpiar mensaje después de 5 segundos
-                  setTimeout(() => {
-                    setMensaje('');
-                    setShowConfetti(false);
-                  }, 5000);
                 }}
                 disabled={generando}
                 className={`w-full px-6 py-3 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 transition-all duration-300 shadow-md disabled:bg-blue-300 disabled:text-white disabled:cursor-not-allowed transform hover:-translate-y-1 ${!generando ? 'btn-pulse' : ''}`}
@@ -1064,6 +1293,19 @@ export default function ReportesPage() {
           setPdfUrl('');
         }}
         pdfUrl={pdfUrl}
+      />
+      
+      {/* Modal para previsualizar Excel */}
+      <ExcelPreviewModal
+        isOpen={isExcelModalOpen}
+        onClose={() => {
+          setIsExcelModalOpen(false);
+          setPendingDownload(null);
+          setExcelPreviewData(null);
+        }}
+        excelData={excelPreviewData}
+        fileName={excelFileName}
+        onDownload={handleDownloadExcel}
       />
     </div>
   );

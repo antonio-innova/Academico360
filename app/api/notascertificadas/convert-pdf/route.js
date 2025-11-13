@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import ILovePDFApi from '@ilovepdf/ilovepdf-nodejs';
 import ILovePDFFile from '@ilovepdf/ilovepdf-nodejs/ILovePDFFile.js';
-import * as XLSX from 'xlsx';
 import fs from 'fs/promises';
 import path from 'path';
 import { tmpdir } from 'os';
@@ -22,11 +21,11 @@ export async function POST(request) {
       return NextResponse.json({ error: 'No se proporcionó archivo Excel' }, { status: 400 });
     }
 
-    // Convertir el blob a buffer directamente sin modificar
+    // Convertir el blob a buffer directamente
     const arrayBuffer = await excelFile.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
     
-    // Guardar el archivo Excel original temporalmente
+    // Guardar el archivo Excel temporalmente
     const tempDir = tmpdir();
     tempInputPath = path.join(tempDir, `input_${Date.now()}_${fileName}`);
     await fs.writeFile(tempInputPath, buffer);
@@ -42,8 +41,13 @@ export async function POST(request) {
     const file = new ILovePDFFile(tempInputPath);
     await task.addFile(file);
 
-    // Procesar la conversión
-    await task.process();
+    // Configurar opciones de conversión para optimizar el PDF
+    // Estas opciones aseguran que se respete la configuración de página del Excel
+    await task.process({
+      landscape: false, // Orientación VERTICAL (portrait)
+      page_margin: 0,   // Sin márgenes adicionales
+      zoom: 100         // Sin zoom adicional
+    });
 
     // Descargar el resultado (task.download() devuelve un buffer directamente)
     const pdfData = await task.download();

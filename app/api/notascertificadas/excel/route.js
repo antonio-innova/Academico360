@@ -258,7 +258,7 @@ export async function POST(request) {
     const EXCLUDED = new Set(['orientacion', 'grupo y participacion']);
 
     const numToLetras = (n) => {
-      const mapa = {1:'uno',2:'dos',3:'tres',4:'cuatro',5:'cinco',6:'seis',7:'siete',8:'ocho',9:'nueve',10:'diez',11:'once',12:'doce',13:'trece',14:'catorce',15:'quince',16:'dieciséis',17:'diecisiete',18:'dieciocho',19:'diecinueve',20:'veinte'};
+      const mapa = {1:'Uno',2:'Dos',3:'Tres',4:'Cuatro',5:'Cinco',6:'Seis',7:'Siete',8:'Ocho',9:'Nueve',10:'Diez',11:'Once',12:'Doce',13:'Trece',14:'Catorce',15:'Quince',16:'Dieciséis',17:'Diecisiete',18:'Dieciocho',19:'Diecinueve',20:'Veinte'};
       const v = Math.max(1, Math.min(20, Math.round(Number(n)||1)));
       return mapa[v];
     };
@@ -564,24 +564,29 @@ export async function POST(request) {
       console.error('❌ Error al escribir Orientación y Grupo y Participación:', error);
     }
 
-    // Definir área de impresión solo con el contenido relevante (sin espacios vacíos)
-    // Asumiendo que el contenido va desde A1 hasta aproximadamente W50
+    // Configurar página para impresión optimizada - UNA PÁGINA VERTICAL COMPLETA
     ws.pageSetup = {
       paperSize: 9, // A4
-      orientation: 'landscape', // Horizontal
+      orientation: 'portrait', // VERTICAL
       fitToPage: true,
-      fitToWidth: 1, // Ajustar a 1 página de ancho
-      fitToHeight: 1, // Ajustar a 1 página de alto
-      printArea: 'A1:W50', // Solo imprimir el área con contenido
+      fitToWidth: 1,
+      fitToHeight: 1,
+      printArea: 'A1:V65', // Área extendida para incluir todo el contenido (1-3 años)
       margins: {
-        left: 0.2,
-        right: 0.2,
-        top: 0.2,
-        bottom: 0.2,
-        header: 0.2,
-        footer: 0.2
-      }
+        left: 0.05,
+        right: 0.05,
+        top: 0.05,
+        bottom: 0.05,
+        header: 0.0,
+        footer: 0.0
+      },
+      horizontalCentered: true,
+      verticalCentered: false
     };
+    
+    // Eliminar saltos de página automáticos
+    ws.pageSetup.printTitlesRow = undefined;
+    ws.pageSetup.printTitlesColumn = undefined;
 
     const buffer = await workbook.xlsx.writeBuffer();
 
