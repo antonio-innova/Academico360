@@ -15,6 +15,48 @@ import GestionRepresentante from '../components/GestionRepresentante';
 import * as XLSX from 'xlsx';
 import { loadDriver } from '../utils/driverLoader';
 
+const CERTIFICADO_EVALUACION_OPTIONS = [
+  {
+    id: 'final',
+    title: 'Final',
+    description: 'Certificación final del período académico con todos los momentos consolidados.'
+  },
+  {
+    id: 'revision',
+    title: 'Revisión',
+    description: 'Emisión para revisión interna o entrega de notas antes del cierre oficial.'
+  },
+  {
+    id: 'materia-pendiente',
+    title: 'Materia Pendiente',
+    description: 'Registra la regularización de materias pendientes por momento específico.'
+  }
+];
+
+const CERTIFICADO_MOMENTO_OPTIONS = [
+  { id: 'octubre', label: 'Octubre' },
+  { id: 'diciembre', label: 'Diciembre' },
+  { id: 'enero', label: 'Enero' },
+  { id: 'junio', label: 'Junio' }
+];
+
+const CERTIFICADO_EVALUACION_LABELS = {
+  final: 'Final',
+  revision: 'Revisión',
+  'materia-pendiente': 'Materia Pendiente'
+};
+
+const createEmptyCertificadoForm = () => ({
+  tipoEvaluacion: '',
+  momento: 'octubre',
+  formato: '1-3',
+  estudiante: {
+    cedula: '',
+    nombres: '',
+    apellidos: ''
+  }
+});
+
 export default function SidebarPage() {
 
   // Definición de materias por año
@@ -94,6 +136,7 @@ export default function SidebarPage() {
   const [aulaToAddStudents, setAulaToAddStudents] = useState(null); // Aula seleccionada para agregar estudiantes
   const [availableStudents, setAvailableStudents] = useState([]); // Estudiantes disponibles para agregar
   const [selectedStudentsToAdd, setSelectedStudentsToAdd] = useState([]); // Estudiantes seleccionados para agregar
+  const [studentMateriasMap, setStudentMateriasMap] = useState({}); // Mapa de estudianteId -> array de materiaIds seleccionadas
   
   // Estados para gestión de profesores por materia
   const [showGestionProfesoresModal, setShowGestionProfesoresModal] = useState(false);
@@ -1140,6 +1183,52 @@ export default function SidebarPage() {
   const getMateriasByGrado = (grado) => (materiasPorAnio[`${grado} año`] || []);
   const [notesSubTab, setNotesSubTab] = useState('agregar');
   const [notaTipoFormato, setNotaTipoFormato] = useState('1-3'); // '1-3' o '1-5'
+
+  const [certificadoEvaluacionTab, setCertificadoEvaluacionTab] = useState('agregar');
+  const [certificadoFormState, setCertificadoFormState] = useState(() => ({
+    agregar: createEmptyCertificadoForm(),
+    generar: createEmptyCertificadoForm()
+  }));
+
+  const evaluacionLabelMapGlobal = CERTIFICADO_EVALUACION_LABELS;
+
+  const getCertificadoForm = useCallback(
+    (tab) => certificadoFormState[tab] || createEmptyCertificadoForm(),
+    [certificadoFormState]
+  );
+
+  const updateCertificadoForm = useCallback((tab, updates) => {
+    setCertificadoFormState((prev) => {
+      const prevTabState = prev[tab] || createEmptyCertificadoForm();
+      const { estudiante: estudianteUpdates, ...rest } = updates;
+
+      return {
+        ...prev,
+        [tab]: {
+          ...prevTabState,
+          ...rest,
+          estudiante: estudianteUpdates
+            ? { ...prevTabState.estudiante, ...estudianteUpdates }
+            : prevTabState.estudiante
+        }
+      };
+    });
+  }, []);
+
+  const updateCertificadoEstudiante = useCallback((tab, campo, valor) => {
+    updateCertificadoForm(tab, {
+      estudiante: { [campo]: valor }
+    });
+  }, [updateCertificadoForm]);
+
+  const certificadoAgregarForm = getCertificadoForm('agregar');
+  const certificadoGenerarForm = getCertificadoForm('generar');
+  const certificadoEstadoActual = getCertificadoForm(certificadoEvaluacionTab);
+  const certificadoEstadoLabel = certificadoEstadoActual.tipoEvaluacion
+    ? certificadoEstadoActual.tipoEvaluacion === 'materia-pendiente'
+      ? `Materia Pendiente · ${(certificadoEstadoActual.momento || 'octubre').toUpperCase()}`
+      : evaluacionLabelMapGlobal[certificadoEstadoActual.tipoEvaluacion]
+    : 'Sin selección';
   const [notaInstitucion, setNotaInstitucion] = useState({ entidadFederal: '', cdcee: '', codigo: '', planteles: [] });
   const [notaEst, setNotaEst] = useState({ cedula: '', nombres: '', apellidos: '', fechaNacimiento: '', pais: 'VENEZUELA', estado: '', municipio: '' });
   const [notaPlan, setNotaPlan] = useState([{ grado: '1', materias: getMateriasByGrado('1').map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' })) }]);
@@ -1154,6 +1243,8 @@ export default function SidebarPage() {
   const [alumnoParaInscribir, setAlumnoParaInscribir] = useState(null);
   const [aulasDisponibles, setAulasDisponibles] = useState([]);
   const [aulaSeleccionada, setAulaSeleccionada] = useState('');
+  const [aulaSeleccionadaData, setAulaSeleccionadaData] = useState(null); // Datos completos del aula seleccionada
+  const [materiasInscripcionSeleccionadas, setMateriasInscripcionSeleccionadas] = useState([]); // Materias seleccionadas para inscripción
 
   const addAnio = () => setNotaPlan(prev => [...prev, { grado: '1', materias: getMateriasByGrado('1').map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' })) }]);
 
@@ -1247,19 +1338,55 @@ export default function SidebarPage() {
     }
   };
 
-  const handleGenerarExcelNotas = async () => {
+  const handleGenerarExcelNotas = async (options = {}) => {
     try {
-      console.log('Generando Excel con datos:', { institucion: notaInstitucion, estudiante: notaEst, planEstudio: notaPlan, tipoFormato: notaTipoFormato });
-      
+      const {
+        institucion = notaInstitucion,
+        estudiante = notaEst,
+        planEstudio = notaPlan,
+        tipoFormato = notaTipoFormato,
+        tipoEvaluacion,
+        materiaPendienteMomento
+      } = options;
+
+      const includeEvaluacion = Object.prototype.hasOwnProperty.call(options, 'tipoEvaluacion');
+      const resumenEvaluacion = includeEvaluacion ? tipoEvaluacion || 'no seleccionado' : 'no aplicado';
+
+      console.log('Generando Excel con datos:', { 
+        institucion, 
+        estudiante, 
+        planEstudio, 
+        tipoFormato,
+        tipoEvaluacion: resumenEvaluacion,
+        materiaPendienteMomento: includeEvaluacion ? materiaPendienteMomento || null : undefined
+      });
+
+      if (includeEvaluacion && !tipoEvaluacion) {
+        throw new Error('Selecciona el tipo de evaluación antes de generar el certificado.');
+      }
+
       // Seleccionar la ruta según el tipo de formato
-      const endpoint = notaTipoFormato === '1-5' 
+      const endpoint = tipoFormato === '1-5' 
         ? '/api/notascertificadas/excel-quinto' 
         : '/api/notascertificadas/excel';
+
+      const payload = {
+        estudiante,
+        institucion,
+        planEstudio
+      };
+
+      if (includeEvaluacion) {
+        payload.tipoEvaluacion = tipoEvaluacion;
+        if (tipoEvaluacion === 'materia-pendiente' && materiaPendienteMomento) {
+          payload.materiaPendienteMomento = materiaPendienteMomento;
+        }
+      }
       
       const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ estudiante: notaEst, institucion: notaInstitucion, planEstudio: notaPlan })
+        body: JSON.stringify(payload)
       });
       if (!res.ok) throw new Error('No se pudo generar el Excel');
       const blob = await res.blob();
@@ -1277,7 +1404,7 @@ export default function SidebarPage() {
       const contentDisposition = res.headers.get('Content-Disposition');
       const fileName = contentDisposition 
         ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
-        : `nota_certificada_${notaTipoFormato}_${notaEst.cedula || 'estudiante'}.xlsx`;
+        : `nota_certificada_${tipoFormato}_${estudiante.cedula || 'estudiante'}.xlsx`;
 
       // Crear URL del blob para vista previa
       const blobUrl = window.URL.createObjectURL(blob);
@@ -1353,6 +1480,237 @@ export default function SidebarPage() {
     window.URL.revokeObjectURL(url);
     setNotification({ type: 'success', message: 'Excel descargado exitosamente' });
     setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleRegistrarCertificadoEvaluacion = () => {
+    const form = getCertificadoForm('agregar');
+    const { tipoEvaluacion, momento, formato, estudiante } = form;
+
+    if (!tipoEvaluacion) {
+      setNotification({ type: 'error', message: 'Selecciona el tipo de evaluación antes de registrar.' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    console.log('Registro de certificado de evaluación:', {
+      tipoEvaluacion,
+      momento: tipoEvaluacion === 'materia-pendiente' ? momento : null,
+      tipoFormato: formato,
+      estudiante
+    });
+
+    setNotification({ type: 'success', message: 'Configuración registrada temporalmente.' });
+    setTimeout(() => setNotification(null), 3000);
+  };
+
+  const handleGenerarCertificadoEvaluacion = () => {
+    const form = getCertificadoForm('generar');
+    const { tipoEvaluacion, momento, formato, estudiante } = form;
+
+    if (!tipoEvaluacion) {
+      setNotification({ type: 'error', message: 'Selecciona el tipo de evaluación antes de generar.' });
+      setTimeout(() => setNotification(null), 3000);
+      return;
+    }
+
+    handleGenerarExcelNotas({
+      estudiante,
+      tipoFormato: formato,
+      tipoEvaluacion,
+      materiaPendienteMomento: tipoEvaluacion === 'materia-pendiente' ? momento : null
+    });
+  };
+
+  const renderCertificadoEvaluacionForm = ({
+    tabKey,
+    formState,
+    showHelper = false,
+    submitLabel,
+    onSubmit
+  }) => {
+    const { tipoEvaluacion, momento, formato, estudiante } = formState;
+    const hasTipoSeleccionado = Boolean(tipoEvaluacion);
+    const momentVisible = tipoEvaluacion === 'materia-pendiente';
+    const labelEvaluacion = evaluacionLabelMapGlobal[tipoEvaluacion] || 'Selecciona un tipo';
+    const resumenMomento = momentVisible
+      ? (CERTIFICADO_MOMENTO_OPTIONS.find((m) => m.id === momento)?.label || 'Octubre')
+      : '';
+
+    const handleSubmit = () => {
+      if (!hasTipoSeleccionado || typeof onSubmit !== 'function') return;
+      onSubmit();
+    };
+
+    const handleTipoEvaluacionChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        tipoEvaluacion: value,
+        momento: value === 'materia-pendiente' ? momento || 'octubre' : 'octubre'
+      });
+    };
+
+    const handleMomentoChange = (value) => {
+      updateCertificadoForm(tabKey, { momento: value });
+    };
+
+    const handleFormatoChange = (value) => {
+      updateCertificadoForm(tabKey, { formato: value });
+    };
+
+    const handleEstudianteChange = (campo, valor) => {
+      updateCertificadoEstudiante(tabKey, campo, valor);
+    };
+
+    const getId = (suffix) => `${tabKey}-${suffix}`;
+
+    return (
+      <div className="space-y-6">
+        {showHelper && (
+          <div className="bg-blue-50 border border-blue-100 text-blue-800 px-4 py-3 rounded-md">
+            <p className="text-sm">
+              Selecciona el tipo de evaluación que deseas trabajar. Una vez elegido, se mostrarán los campos adicionales.
+            </p>
+          </div>
+        )}
+
+        <div>
+          <label className="block text-sm font-semibold text-gray-700 mb-3">Tipo de Evaluación</label>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {CERTIFICADO_EVALUACION_OPTIONS.map((option) => {
+              const isActive = tipoEvaluacion === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleTipoEvaluacionChange(option.id)}
+                  className={`text-left border rounded-lg p-4 transition-all ${
+                    isActive
+                      ? 'border-blue-600 bg-blue-50 shadow-md'
+                      : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-base font-semibold text-gray-800">{option.title}</span>
+                    {isActive && (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 011.414-1.414L8.5 11.086l6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{option.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          {momentVisible && (
+            <div className="mt-4">
+              <span className="block text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Momento de regularización</span>
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
+                {CERTIFICADO_MOMENTO_OPTIONS.map((option) => {
+                  const isActive = momento === option.id;
+                  return (
+                    <button
+                      key={option.id}
+                      type="button"
+                      onClick={() => handleMomentoChange(option.id)}
+                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
+                        isActive
+                          ? 'bg-indigo-600 text-white shadow-md'
+                          : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-gray-500 mt-2">
+                Selecciona el momento evaluativo en el que se regulariza la materia pendiente. Esto se enviará junto al certificado.
+              </p>
+            </div>
+          )}
+        </div>
+
+        {hasTipoSeleccionado ? (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Formato</label>
+                <select
+                  id={getId('select-tipo-formato')}
+                  className="border rounded p-2 w-full"
+                  value={formato}
+                  onChange={(e) => handleFormatoChange(e.target.value)}
+                >
+                  <option value="1-3">1-3 año (Formato Original)</option>
+                  <option value="1-5">1-5 año (Formato Quinto)</option>
+                </select>
+                <p className="text-xs text-gray-500 mt-1">
+                  {formato === '1-3'
+                    ? 'Usa la plantilla notascertificadas.xlsx (hasta 3er año)'
+                    : 'Usa la plantilla formatoquinto.xlsx (hasta 5to año)'}
+                </p>
+              </div>
+              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-md p-4 text-sm text-gray-600">
+                <p className="font-semibold text-gray-700">Resumen de la selección</p>
+                <ul className="mt-2 space-y-1">
+                  <li><strong>Evaluación:</strong> {labelEvaluacion}</li>
+                  {momentVisible && <li><strong>Momento:</strong> {resumenMomento}</li>}
+                  <li><strong>Formato:</strong> {formato === '1-5' ? '1° a 5° año' : '1° a 3° año'}</li>
+                </ul>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <input
+                id={getId('input-cedula')}
+                className="border rounded p-2"
+                placeholder="Cédula"
+                value={estudiante.cedula}
+                onChange={(e) => handleEstudianteChange('cedula', e.target.value)}
+              />
+              <input
+                id={getId('input-nombres')}
+                className="border rounded p-2"
+                placeholder="Nombres"
+                value={estudiante.nombres}
+                onChange={(e) => handleEstudianteChange('nombres', e.target.value)}
+              />
+              <input
+                id={getId('input-apellidos')}
+                className="border rounded p-2"
+                placeholder="Apellidos"
+                value={estudiante.apellidos}
+                onChange={(e) => handleEstudianteChange('apellidos', e.target.value)}
+              />
+            </div>
+
+            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+              <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-4 py-3 rounded-md">
+                <p>El certificado incluirá automáticamente el tipo de evaluación seleccionado.</p>
+                {momentVisible && (
+                  <p className="mt-1">Recuerda verificar las materias del plan de estudio para este momento.</p>
+                )}
+              </div>
+              <button
+                id={getId('btn-submit')}
+                className="px-5 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-semibold shadow-sm flex items-center justify-center gap-2"
+                onClick={handleSubmit}
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+                {submitLabel || `Guardar (${labelEvaluacion})`}
+              </button>
+            </div>
+          </>
+        ) : (
+          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm">
+            Selecciona primero el tipo de evaluación para ver los campos disponibles.
+          </div>
+        )}
+      </div>
+    );
   };
 
   const setFechaAnioParaTodo = (anioIdx) => {
@@ -2250,6 +2608,7 @@ export default function SidebarPage() {
   const openAddStudentsModal = async (aula) => {
     setAulaToAddStudents(aula);
     setSelectedStudentsToAdd([]);
+    setStudentMateriasMap({});
     await loadAvailableStudents(aula);
     setShowAddStudentsModal(true);
   };
@@ -2261,14 +2620,17 @@ export default function SidebarPage() {
     try {
       setLoading(true);
       
-      // Preparar los nuevos estudiantes para agregar
+      // Preparar los nuevos estudiantes para agregar con sus materias seleccionadas
       const nuevosEstudiantes = selectedStudentsToAdd.map(studentId => {
         const estudiante = availableStudents.find(est => est._id === studentId);
+        const materiasSeleccionadas = studentMateriasMap[studentId] || [];
         return {
           _id: estudiante._id,
           nombre: estudiante.nombre,
           apellido: estudiante.apellido,
-          cedula: estudiante.cedula || estudiante.idU
+          cedula: estudiante.cedula || estudiante.idU,
+          idU: estudiante.idU || estudiante.cedula,
+          materiasAsignadas: materiasSeleccionadas
         };
       });
 
@@ -2301,6 +2663,7 @@ export default function SidebarPage() {
         setAulaToAddStudents(null);
         setSelectedStudentsToAdd([]);
         setAvailableStudents([]);
+        setStudentMateriasMap({});
       } else {
         throw new Error(result.message || 'Error al agregar estudiantes');
       }
@@ -2320,9 +2683,41 @@ export default function SidebarPage() {
   const handleStudentSelection = (studentId, isChecked) => {
     if (isChecked) {
       setSelectedStudentsToAdd(prev => [...prev, studentId]);
+      // Si no tiene materias seleccionadas, asignar todas por defecto
+      if (!studentMateriasMap[studentId] && aulaToAddStudents?.asignaciones) {
+        const todasMaterias = aulaToAddStudents.asignaciones.map(asig => asig.materia.id);
+        setStudentMateriasMap(prev => ({
+          ...prev,
+          [studentId]: todasMaterias
+        }));
+      }
     } else {
       setSelectedStudentsToAdd(prev => prev.filter(id => id !== studentId));
+      // Limpiar las materias seleccionadas cuando se deselecciona el estudiante
+      setStudentMateriasMap(prev => {
+        const nuevo = { ...prev };
+        delete nuevo[studentId];
+        return nuevo;
+      });
     }
+  };
+
+  // Función para manejar selección de materias por estudiante
+  const handleMateriaSelection = (studentId, materiaId, isChecked) => {
+    setStudentMateriasMap(prev => {
+      const materiasActuales = prev[studentId] || [];
+      if (isChecked) {
+        return {
+          ...prev,
+          [studentId]: [...materiasActuales, materiaId]
+        };
+      } else {
+        return {
+          ...prev,
+          [studentId]: materiasActuales.filter(id => id !== materiaId)
+        };
+      }
+    });
   };
 
   // Función para cargar estudiantes del aula
@@ -4273,6 +4668,8 @@ export default function SidebarPage() {
       // Mostrar todas las aulas disponibles, no solo las que coincidan con año/sección
       setAulasDisponibles(aulas);
       setAulaSeleccionada('');
+      setAulaSeleccionadaData(null);
+      setMateriasInscripcionSeleccionadas([]);
       setShowInscripcionModal(true);
     } catch (error) {
       console.error('Error al preparar inscripción:', error);
@@ -4280,9 +4677,50 @@ export default function SidebarPage() {
     }
   };
 
+  // Función para cargar datos del aula cuando se selecciona
+  const handleAulaSeleccionadaChange = async (aulaId) => {
+    setAulaSeleccionada(aulaId);
+    setMateriasInscripcionSeleccionadas([]);
+    
+    if (aulaId) {
+      try {
+        const response = await fetch(`/api/aulas/${aulaId}`);
+        if (response.ok) {
+          const result = await response.json();
+          if (result.success && result.data) {
+            const aula = result.data;
+            setAulaSeleccionadaData(aula);
+            // Por defecto, seleccionar todas las materias
+            if (aula.asignaciones && aula.asignaciones.length > 0) {
+              const todasMaterias = aula.asignaciones.map(asig => asig.materia.id);
+              setMateriasInscripcionSeleccionadas(todasMaterias);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar datos del aula:', error);
+      }
+    } else {
+      setAulaSeleccionadaData(null);
+    }
+  };
+
+  // Función para manejar selección de materias en inscripción
+  const handleMateriaInscripcionSelection = (materiaId, isChecked) => {
+    if (isChecked) {
+      setMateriasInscripcionSeleccionadas(prev => [...prev, materiaId]);
+    } else {
+      setMateriasInscripcionSeleccionadas(prev => prev.filter(id => id !== materiaId));
+    }
+  };
+
   // Función para confirmar inscripción
   const handleConfirmarInscripcion = async () => {
     if (!aulaSeleccionada || !alumnoParaInscribir) return;
+    if (!materiasInscripcionSeleccionadas || materiasInscripcionSeleccionadas.length === 0) {
+      setNotification({ type: 'error', message: 'Debe seleccionar al menos una materia' });
+      return;
+    }
     
     try {
       setLoading(true);
@@ -4293,7 +4731,8 @@ export default function SidebarPage() {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          estudianteId: alumnoParaInscribir._id || alumnoParaInscribir.id
+          estudianteId: alumnoParaInscribir._id || alumnoParaInscribir.id,
+          materiasAsignadas: materiasInscripcionSeleccionadas
         })
       });
 
@@ -4332,6 +4771,8 @@ export default function SidebarPage() {
       setShowInscripcionModal(false);
       setAlumnoParaInscribir(null);
       setAulaSeleccionada('');
+      setAulaSeleccionadaData(null);
+      setMateriasInscripcionSeleccionadas([]);
       setTimeout(() => setNotification(null), 3000);
     }
   };
@@ -7855,6 +8296,18 @@ export default function SidebarPage() {
                       {!sidebarCollapsed && <span className="ml-3 font-medium">Notas Certificadas</span>}
                     </button>
                   </li>
+                  <li>
+                    <button
+                      id="nav-certificado-evaluacion"
+                      className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'certificadoEvaluacion' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
+                      onClick={() => setActiveTab('certificadoEvaluacion')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                      </svg>
+                      {!sidebarCollapsed && <span className="ml-3 font-medium">Certificado de Evaluación</span>}
+                    </button>
+                  </li>
                   {/* Planilla oculta del sidebar */}
                 </>
               )}
@@ -8805,37 +9258,116 @@ export default function SidebarPage() {
               {notesSubTab === 'generar' && (
                 <div className="space-y-4">
                   <p className="text-gray-600">Rellena los datos mínimos del estudiante y genera el Excel desde la plantilla.</p>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Formato</label>
-                      <select 
+                      <select
                         id="select-tipo-formato-nota"
-                        className="border rounded p-2 w-full" 
-                        value={notaTipoFormato} 
-                        onChange={(e)=>setNotaTipoFormato(e.target.value)}
+                        className="border rounded p-2 w-full"
+                        value={notaTipoFormato}
+                        onChange={(e) => setNotaTipoFormato(e.target.value)}
                       >
                         <option value="1-3">1-3 año (Formato Original)</option>
                         <option value="1-5">1-5 año (Formato Quinto)</option>
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        {notaTipoFormato === '1-3' 
-                          ? 'Usa la plantilla notascertificadas.xlsx (hasta 3er año)' 
+                        {notaTipoFormato === '1-3'
+                          ? 'Usa la plantilla notascertificadas.xlsx (hasta 3er año)'
                           : 'Usa la plantilla formatoquinto.xlsx (hasta 5to año)'}
                       </p>
                     </div>
                   </div>
-                  
+
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <input id="input-cedula-generar" className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
-                    <input id="input-nombres-generar" className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
-                    <input id="input-apellidos-generar" className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
+                    <input
+                      id="input-cedula-generar"
+                      className="border rounded p-2"
+                      placeholder="Cédula"
+                      value={notaEst.cedula}
+                      onChange={(e) => setNotaEst((prev) => ({ ...prev, cedula: e.target.value }))}
+                    />
+                    <input
+                      id="input-nombres-generar"
+                      className="border rounded p-2"
+                      placeholder="Nombres"
+                      value={notaEst.nombres}
+                      onChange={(e) => setNotaEst((prev) => ({ ...prev, nombres: e.target.value }))}
+                    />
+                    <input
+                      id="input-apellidos-generar"
+                      className="border rounded p-2"
+                      placeholder="Apellidos"
+                      value={notaEst.apellidos}
+                      onChange={(e) => setNotaEst((prev) => ({ ...prev, apellidos: e.target.value }))}
+                    />
                   </div>
-                  <button id="btn-generar-excel-nota" className="px-4 py-2 bg-green-600 text-white rounded" onClick={handleGenerarExcelNotas}>Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}</button>
+
+                  <button
+                    id="btn-generar-excel-nota"
+                    className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
+                    onClick={() => handleGenerarExcelNotas()}
+                  >
+                    Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}
+                  </button>
                 </div>
               )}
             </div>
           )}
+
+      {activeTab === 'certificadoEvaluacion' && (
+        <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Certificado de Evaluación</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Administra certificados para Final, Revisión o Materia Pendiente. Primero selecciona el tipo de evaluación y luego completa los datos correspondientes.
+              </p>
+            </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Estado</span>
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+                {certificadoEstadoLabel}
+              </span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <button
+              className={`px-4 py-2 rounded ${certificadoEvaluacionTab === 'agregar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              onClick={() => setCertificadoEvaluacionTab('agregar')}
+            >
+              Agregar
+            </button>
+            <button
+              className={`px-4 py-2 rounded ${certificadoEvaluacionTab === 'generar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
+              onClick={() => setCertificadoEvaluacionTab('generar')}
+            >
+              Generar
+            </button>
+          </div>
+
+          {certificadoEvaluacionTab === 'agregar' && renderCertificadoEvaluacionForm({
+            tabKey: 'certificado-agregar',
+            formState: certificadoAgregarForm,
+            showHelper: true,
+            submitLabel: certificadoAgregarForm.tipoEvaluacion
+              ? `Guardar (${evaluacionLabelMapGlobal[certificadoAgregarForm.tipoEvaluacion]})`
+              : 'Guardar configuración',
+            onSubmit: handleRegistrarCertificadoEvaluacion
+          })}
+
+          {certificadoEvaluacionTab === 'generar' && renderCertificadoEvaluacionForm({
+            tabKey: 'certificado-generar',
+            formState: certificadoGenerarForm,
+            showHelper: true,
+            submitLabel: certificadoGenerarForm.tipoEvaluacion
+              ? `Generar Certificado (${evaluacionLabelMapGlobal[certificadoGenerarForm.tipoEvaluacion]})`
+              : 'Generar Certificado',
+            onSubmit: handleGenerarCertificadoEvaluacion
+          })}
+        </div>
+      )}
 
           {previewNotasVisible && (
             <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-50 p-4">
@@ -9390,36 +9922,72 @@ export default function SidebarPage() {
                               </div>
                               
                               {availableStudents.map((estudiante) => (
-                                <div key={estudiante._id} className="flex items-center p-3 border border-gray-200 rounded-lg hover:bg-gray-50">
-                                  <input
-                                    type="checkbox"
-                                    id={`student-${estudiante._id}`}
-                                    checked={selectedStudentsToAdd.includes(estudiante._id)}
-                                    onChange={(e) => handleStudentSelection(estudiante._id, e.target.checked)}
-                                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                                  />
-                                  <label htmlFor={`student-${estudiante._id}`} className="ml-3 flex-1 cursor-pointer">
-                                    <div className="flex justify-between items-center">
-                                      <div>
-                                        <p className="font-medium text-gray-900">
-                                          {estudiante.nombre} {estudiante.apellido}
-                                        </p>
-                                        <p className="text-sm text-gray-500">
-                                          Cédula: {estudiante.cedula || estudiante.idU || 'N/D'}
-                                        </p>
-                                      </div>
-                                      <div className="text-right">
-                                        <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
-                                          {estudiante.anio}° Año - Sección {estudiante.seccion || 'N/D'}
-                                        </div>
-                                        {estudiante.edad && (
-                                          <p className="text-xs text-gray-400 mt-1">
-                                            {estudiante.edad} años
+                                <div key={estudiante._id} className="border border-gray-200 rounded-lg hover:bg-gray-50 mb-3">
+                                  <div className="flex items-center p-3">
+                                    <input
+                                      type="checkbox"
+                                      id={`student-${estudiante._id}`}
+                                      checked={selectedStudentsToAdd.includes(estudiante._id)}
+                                      onChange={(e) => handleStudentSelection(estudiante._id, e.target.checked)}
+                                      className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                                    />
+                                    <label htmlFor={`student-${estudiante._id}`} className="ml-3 flex-1 cursor-pointer">
+                                      <div className="flex justify-between items-center">
+                                        <div>
+                                          <p className="font-medium text-gray-900">
+                                            {estudiante.nombre} {estudiante.apellido}
                                           </p>
-                                        )}
+                                          <p className="text-sm text-gray-500">
+                                            Cédula: {estudiante.cedula || estudiante.idU || 'N/D'}
+                                          </p>
+                                        </div>
+                                        <div className="text-right">
+                                          <div className="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                                            {estudiante.anio}° Año - Sección {estudiante.seccion || 'N/D'}
+                                          </div>
+                                          {estudiante.edad && (
+                                            <p className="text-xs text-gray-400 mt-1">
+                                              {estudiante.edad} años
+                                            </p>
+                                          )}
+                                        </div>
                                       </div>
+                                    </label>
+                                  </div>
+                                  
+                                  {/* Selector de materias (solo visible si el estudiante está seleccionado) */}
+                                  {selectedStudentsToAdd.includes(estudiante._id) && aulaToAddStudents?.asignaciones && (
+                                    <div className="px-3 pb-3 pt-2 border-t border-gray-200 bg-gray-50">
+                                      <p className="text-xs font-medium text-gray-700 mb-2">Selecciona las materias que verá este estudiante:</p>
+                                      <div className="grid grid-cols-2 gap-2">
+                                        {aulaToAddStudents.asignaciones.map((asignacion) => {
+                                          const materiaId = asignacion.materia.id;
+                                          const materiasSeleccionadas = studentMateriasMap[estudiante._id] || [];
+                                          const isChecked = materiasSeleccionadas.includes(materiaId);
+                                          
+                                          return (
+                                            <label
+                                              key={materiaId}
+                                              className="flex items-center p-2 bg-white rounded border border-gray-200 hover:bg-blue-50 cursor-pointer"
+                                            >
+                                              <input
+                                                type="checkbox"
+                                                checked={isChecked}
+                                                onChange={(e) => handleMateriaSelection(estudiante._id, materiaId, e.target.checked)}
+                                                className="h-3 w-3 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                                              />
+                                              <span className="text-xs text-gray-700">{asignacion.materia.nombre}</span>
+                                            </label>
+                                          );
+                                        })}
+                                      </div>
+                                      {(!studentMateriasMap[estudiante._id] || studentMateriasMap[estudiante._id].length === 0) && (
+                                        <p className="text-xs text-amber-600 mt-2">
+                                          ⚠️ Debe seleccionar al menos una materia
+                                        </p>
+                                      )}
                                     </div>
-                                  </label>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -9440,7 +10008,7 @@ export default function SidebarPage() {
                           </button>
                           <button
                             onClick={handleAddStudentsToAula}
-                            disabled={selectedStudentsToAdd.length === 0 || loading}
+                            disabled={selectedStudentsToAdd.length === 0 || loading || selectedStudentsToAdd.some(id => !studentMateriasMap[id] || studentMateriasMap[id].length === 0)}
                             className="px-6 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center"
                           >
                             {loading ? (
@@ -13188,7 +13756,7 @@ export default function SidebarPage() {
                 ) : (
                   <select
                     value={aulaSeleccionada}
-                    onChange={(e) => setAulaSeleccionada(e.target.value)}
+                    onChange={(e) => handleAulaSeleccionadaChange(e.target.value)}
                     className="w-full p-2 border rounded-md"
                     required
                   >
@@ -13201,6 +13769,43 @@ export default function SidebarPage() {
                   </select>
                 )}
               </div>
+
+              {/* Selector de materias (solo visible si hay un aula seleccionada) */}
+              {aulaSeleccionada && aulaSeleccionadaData?.asignaciones && (
+                <div className="mb-6">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Selecciona las materias que verá este estudiante:
+                  </label>
+                  <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-md p-3 bg-gray-50">
+                    <div className="grid grid-cols-1 gap-2">
+                      {aulaSeleccionadaData.asignaciones.map((asignacion) => {
+                        const materiaId = asignacion.materia.id;
+                        const isChecked = materiasInscripcionSeleccionadas.includes(materiaId);
+                        
+                        return (
+                          <label
+                            key={materiaId}
+                            className="flex items-center p-2 bg-white rounded border border-gray-200 hover:bg-blue-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={isChecked}
+                              onChange={(e) => handleMateriaInscripcionSelection(materiaId, e.target.checked)}
+                              className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded mr-2"
+                            />
+                            <span className="text-sm text-gray-700">{asignacion.materia.nombre}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    {materiasInscripcionSeleccionadas.length === 0 && (
+                      <p className="text-xs text-amber-600 mt-2">
+                        ⚠️ Debe seleccionar al menos una materia
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )}
               
               <div className="flex justify-end gap-4">
                 <button
@@ -13208,6 +13813,8 @@ export default function SidebarPage() {
                     setShowInscripcionModal(false);
                     setAlumnoParaInscribir(null);
                     setAulaSeleccionada('');
+                    setAulaSeleccionadaData(null);
+                    setMateriasInscripcionSeleccionadas([]);
                   }}
                   className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
                 >
@@ -13215,7 +13822,7 @@ export default function SidebarPage() {
                 </button>
                 <button
                   onClick={handleConfirmarInscripcion}
-                  disabled={!aulaSeleccionada || loading || aulasDisponibles.length === 0}
+                  disabled={!aulaSeleccionada || loading || aulasDisponibles.length === 0 || materiasInscripcionSeleccionadas.length === 0}
                   className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed"
                 >
                   {loading ? 'Inscribiendo...' : 'Inscribir'}

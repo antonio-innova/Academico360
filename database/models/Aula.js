@@ -40,7 +40,23 @@ const aulaSchema = new mongoose.Schema({
     apellido: {
       type: String,
       required: true
-    }
+    },
+    _id: {
+      type: String,
+      required: false
+    },
+    cedula: {
+      type: String,
+      required: false
+    },
+    idU: {
+      type: String,
+      required: false
+    },
+    // Array de IDs de materias que el estudiante ve (opcional, si no existe se asume que ve todas)
+    materiasAsignadas: [{
+      type: String
+    }]
   }],
   asignaciones: [{
     materia: {

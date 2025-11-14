@@ -54,7 +54,7 @@ export async function GET(request) {
       return isNaN(n) ? '' : Math.round(n).toString();
     };
 
-    // Calcular EV1..EV5 y NF por materia para el momento seleccionado
+    // Calcular EV1..EV8 y NF por materia para el momento seleccionado
     const estudiantesConNF = (aula.alumnos || []).map((alumno, idx) => {
       const estudianteId = alumno._id?.toString() || alumno.id || '';
       let estDoc = idToInfo.get(estudianteId);
@@ -69,9 +69,9 @@ export async function GET(request) {
       for (const asig of asignacionesAula) {
         const nombreMateria = asig.materia?.nombre || 'Materia';
         const bloqueado = asig.momentosBloqueados?.[momento] === true;
-        if (!detallePorMateria[nombreMateria]) detallePorMateria[nombreMateria] = { ev: ['', '', '', '', ''], nf: '' };
+        if (!detallePorMateria[nombreMateria]) detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
         if (bloqueado) {
-          detallePorMateria[nombreMateria] = { ev: ['', '', '', '', ''], nf: '' };
+          detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
           continue;
         }
 
@@ -93,18 +93,18 @@ export async function GET(request) {
           .sort((a, b) => parseFecha(a.fecha) - parseFecha(b.fecha));
 
         const notas = [];
-        const ev = ['', '', '', '', ''];
+        const ev = ['', '', '', '', '', '', '', ''];
         let evIndex = 0;
         for (const act of actsMomento) {
           const cal = (act.calificaciones || []).find(c => (c.alumnoId?.toString?.() || String(c.alumnoId)) === estudianteId);
           if (cal && cal.nota !== undefined && cal.nota !== null) {
             notas.push(parseFloat(cal.nota));
-            if (evIndex < 5) {
+            if (evIndex < 8) {
               ev[evIndex] = entero(cal.nota);
               evIndex++;
             }
           } else {
-            if (evIndex < 5) {
+            if (evIndex < 8) {
               ev[evIndex] = '';
               evIndex++;
             }
@@ -133,23 +133,23 @@ export async function GET(request) {
     estudiantesConNF.sort((a, b) => (a.cedula || '').localeCompare(b.cedula || '', undefined, { numeric: true }));
     estudiantesConNF.forEach((e, i) => { e.orden = i + 1; });
 
-    // Construcción de hoja: N°, Nombre, Cédula + por materia: EV1..EV5, NF
+    // Construcción de hoja: N°, Nombre, Cédula + por materia: EV1..EV8, NF
     const headers = ['N°', 'Nombre', 'Cédula'];
     const subHeaders = [];
     materiasOrdenadas.forEach(() => {
-      subHeaders.push('EV1','EV2','EV3','EV4','EV5','NF');
+      subHeaders.push('EV1','EV2','EV3','EV4','EV5','EV6','EV7','EV8','NF');
     });
 
-    // Encabezado principal por materia (texto repetido antes de subheaders)
+    // Encabezado principal por materia (solo en EV1, las demás columnas vacías)
     const headerMaterias = ['N°', 'Nombre', 'Cédula'];
-    materiasOrdenadas.forEach(mat => headerMaterias.push(mat, '', '', '', '', '', ''));
+    materiasOrdenadas.forEach(mat => headerMaterias.push(mat, '', '', '', '', '', '', '', ''));
 
     const data = [headerMaterias, headers.concat(materiasOrdenadas.flatMap(() => subHeaders))];
 
     estudiantesConNF.forEach(est => {
       const row = [est.orden, est.nombreCompleto, est.cedula];
       materiasOrdenadas.forEach(mat => {
-        const det = est.detallePorMateria[mat] || { ev: ['', '', '', '', ''], nf: '' };
+        const det = est.detallePorMateria[mat] || { ev: ['', '', '', '', '', '', '', ''], nf: '' };
         row.push(...det.ev, det.nf);
       });
       data.push(row);
@@ -159,8 +159,8 @@ export async function GET(request) {
     const ws = XLSX.utils.aoa_to_sheet(data);
 
     // Anchos: N°, Nombre amplio, Cédula medio, resto estrechos
-    const cols = [{ wch: 4 }, { wch: 35 }, { wch: 14 }];
-    materiasOrdenadas.forEach(() => cols.push({ wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }));
+    const cols = [{ wch: 4 }, { wch: 30 }, { wch: 12 }];
+    materiasOrdenadas.forEach(() => cols.push({ wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }));
     ws['!cols'] = cols;
 
     // Nombre de hoja

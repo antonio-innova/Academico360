@@ -56,6 +56,19 @@ export async function GET(request) {
       }, { status: 404 });
     }
 
+    // Log para debug: ver qué datos tienen los estudiantes
+    console.log('🔍 DEBUG: Datos de estudiantes desde la base de datos:');
+    estudiantesAula.forEach(est => {
+      console.log(`  - ${est.nombre} ${est.apellido}:`, {
+        _id: est._id,
+        materiasAsignadas: est.materiasAsignadas,
+        tipo: typeof est.materiasAsignadas,
+        esArray: Array.isArray(est.materiasAsignadas),
+        length: Array.isArray(est.materiasAsignadas) ? est.materiasAsignadas.length : 'N/A',
+        raw: JSON.stringify(est)
+      });
+    });
+
     // Obtener las asignaciones
     const asignaciones = aulaData.asignaciones || [];
 
@@ -74,6 +87,32 @@ export async function GET(request) {
       
       // Inicializar estructura para almacenar notas por momento
       const notasPorMomento = {};
+      
+      // Función auxiliar para verificar si un estudiante tiene la materia asignada
+      const estudianteTieneMateria = (estudianteId) => {
+        const estudiante = estudiantesAula.find(est => {
+          const estId = est._id ? est._id.toString() : est.id || est.cedula;
+          return estId === estudianteId;
+        });
+        
+        // Si el estudiante no existe, no tiene la materia
+        if (!estudiante) {
+          return false;
+        }
+        
+        // Si el estudiante no tiene materiasAsignadas definidas, asume que ve todas (compatibilidad hacia atrás para estudiantes antiguos)
+        if (estudiante.materiasAsignadas === undefined || estudiante.materiasAsignadas === null) {
+          return true; // Por defecto para estudiantes antiguos sin el campo, ve todas las materias
+        }
+        
+        // Si tiene un array vacío, no ve ninguna materia
+        if (Array.isArray(estudiante.materiasAsignadas) && estudiante.materiasAsignadas.length === 0) {
+          return false;
+        }
+        
+        // Verificar si la materia está en la lista de materias asignadas del estudiante
+        return estudiante.materiasAsignadas.includes(materia.id);
+      };
       
       // Obtener los puntos extras por momento de la asignación
       const puntosPorMomento = asignacion.puntosPorMomento || {};
@@ -125,44 +164,54 @@ export async function GET(request) {
         parseInt(act.momento) === 3
       );
       
-      // Procesar notas del primer momento
+      // Procesar notas del primer momento (solo para estudiantes que tienen la materia asignada)
       actividadesPrimerMomento.forEach(actividad => {
         (actividad.calificaciones || []).forEach(cal => {
           const alumnoId = cal.alumnoId;
-          if (!notasPorMomento[alumnoId]) {
-            notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+          // Solo procesar si el estudiante tiene la materia asignada
+          if (estudianteTieneMateria(alumnoId)) {
+            if (!notasPorMomento[alumnoId]) {
+              notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+            }
+            notasPorMomento[alumnoId].momento1.push(cal.nota);
           }
-          notasPorMomento[alumnoId].momento1.push(cal.nota);
         });
       });
       
-      // Procesar notas del segundo momento
+      // Procesar notas del segundo momento (solo para estudiantes que tienen la materia asignada)
       if (momento >= 2) {
         actividadesSegundoMomento.forEach(actividad => {
           (actividad.calificaciones || []).forEach(cal => {
             const alumnoId = cal.alumnoId;
-            if (!notasPorMomento[alumnoId]) {
-              notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+            // Solo procesar si el estudiante tiene la materia asignada
+            if (estudianteTieneMateria(alumnoId)) {
+              if (!notasPorMomento[alumnoId]) {
+                notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+              }
+              notasPorMomento[alumnoId].momento2.push(cal.nota);
             }
-            notasPorMomento[alumnoId].momento2.push(cal.nota);
           });
         });
       }
 
-      // Procesar notas del tercer momento
+      // Procesar notas del tercer momento (solo para estudiantes que tienen la materia asignada)
       if (momento === 3) {
         actividadesTercerMomento.forEach(actividad => {
           (actividad.calificaciones || []).forEach(cal => {
             const alumnoId = cal.alumnoId;
-            if (!notasPorMomento[alumnoId]) {
-              notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+            // Solo procesar si el estudiante tiene la materia asignada
+            if (estudianteTieneMateria(alumnoId)) {
+              if (!notasPorMomento[alumnoId]) {
+                notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
+              }
+              notasPorMomento[alumnoId].momento3.push(cal.nota);
             }
-            notasPorMomento[alumnoId].momento3.push(cal.nota);
           });
         });
       }
 
       // Procesar las notas acumuladas para cada alumno
+      // Nota: Solo se procesan notas de estudiantes que tienen la materia asignada
       Object.keys(notasPorMomento).forEach(alumnoId => {
         const notas = notasPorMomento[alumnoId];
         
@@ -240,16 +289,21 @@ export async function GET(request) {
         // Limitar la calificación final a 20 puntos máximo
         calificacionFinal = Math.min(20, calificacionFinal);
         
-        calificacionesPorMateria[alumnoId].push({
-          materia: materia.nombre,
-          momento1: promedioMomento1,
-          momento2: promedioMomento2,
-          momento3: promedioMomento3,
-          puntosExtra1: puntosExtrasMomento1[alumnoId] || 0, // Puntos extras del momento 1
-          puntosExtra2: puntosExtrasMomento2[alumnoId] || 0, // Puntos extras del momento 2
-          puntosExtra3: puntosExtrasMomento3[alumnoId] || 0, // Puntos extras del momento 3
-          calificacion: calificacionFinal
-        });
+        // Solo agregar la calificación si el estudiante tiene esta materia asignada
+        // (ya se verificó antes al procesar las notas, pero verificamos de nuevo por seguridad)
+        if (estudianteTieneMateria(alumnoId)) {
+          calificacionesPorMateria[alumnoId].push({
+            materia: materia.nombre,
+            materiaId: materia.id, // Agregar el ID de la materia para facilitar el filtrado
+            momento1: promedioMomento1,
+            momento2: promedioMomento2,
+            momento3: promedioMomento3,
+            puntosExtra1: puntosExtrasMomento1[alumnoId] || 0, // Puntos extras del momento 1
+            puntosExtra2: puntosExtrasMomento2[alumnoId] || 0, // Puntos extras del momento 2
+            puntosExtra3: puntosExtrasMomento3[alumnoId] || 0, // Puntos extras del momento 3
+            calificacion: calificacionFinal
+          });
+        }
       });
     });
 
@@ -257,6 +311,62 @@ export async function GET(request) {
     const estudiantesFiltrados = studentId ? 
       estudiantesAula.filter(est => est._id.toString() === studentId) : 
       estudiantesAula;
+
+    // Filtrar calificaciones para mostrar solo las materias asignadas a cada estudiante
+    estudiantesFiltrados.forEach(estudiante => {
+      const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
+      
+      // Obtener las materias asignadas del estudiante
+      let materiasAsignadas = [];
+      
+      // Si el estudiante no tiene materiasAsignadas definidas, asume que ve todas (compatibilidad hacia atrás)
+      if (estudiante.materiasAsignadas === undefined || estudiante.materiasAsignadas === null) {
+        // Para estudiantes antiguos sin el campo, mostrar todas las materias
+        materiasAsignadas = asignaciones.map(asig => asig.materia.id);
+        console.log(`📊 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Sin materiasAsignadas, mostrando todas (${materiasAsignadas.length} materias)`);
+      } else if (Array.isArray(estudiante.materiasAsignadas) && estudiante.materiasAsignadas.length > 0) {
+        // Si tiene materias asignadas, usar solo esas
+        materiasAsignadas = estudiante.materiasAsignadas;
+        console.log(`📊 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Tiene ${materiasAsignadas.length} materias asignadas:`, materiasAsignadas);
+      } else {
+        // Si tiene un array vacío, no verá ninguna materia
+        materiasAsignadas = [];
+        console.log(`📊 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Array vacío, no verá ninguna materia`);
+      }
+      
+      // Filtrar calificaciones para mostrar solo las materias asignadas
+      if (calificacionesPorMateria[estudianteId]) {
+        const antes = calificacionesPorMateria[estudianteId].length;
+        calificacionesPorMateria[estudianteId] = calificacionesPorMateria[estudianteId].filter(cal => {
+          // Si la calificación tiene materiaId, usarlo directamente (más confiable)
+          if (cal.materiaId) {
+            const incluir = materiasAsignadas.includes(cal.materiaId);
+            if (!incluir) {
+              console.log(`  ❌ Excluyendo materia: ${cal.materia} (ID: ${cal.materiaId})`);
+            }
+            return incluir;
+          }
+          
+          // Si no tiene materiaId, buscar la asignación por nombre
+          const asignacion = asignaciones.find(asig => asig.materia.nombre === cal.materia);
+          if (!asignacion) {
+            console.log(`  ⚠️ No se encontró asignación para materia: ${cal.materia}`);
+            return false;
+          }
+          
+          // Solo incluir si la materia está en la lista de materias asignadas del estudiante
+          const incluir = materiasAsignadas.includes(asignacion.materia.id);
+          if (!incluir) {
+            console.log(`  ❌ Excluyendo materia: ${cal.materia} (ID: ${asignacion.materia.id})`);
+          }
+          return incluir;
+        });
+        const despues = calificacionesPorMateria[estudianteId].length;
+        console.log(`  ✅ Filtrado: ${antes} → ${despues} materias para ${estudiante.nombre} ${estudiante.apellido}`);
+      } else {
+        console.log(`  ⚠️ No hay calificaciones para el estudiante ${estudiante.nombre} ${estudiante.apellido}`);
+      }
+    });
 
     // Si no hay actividades, agregar N/A para todos los estudiantes
     if (!asignaciones || asignaciones.length === 0) {
@@ -297,7 +407,41 @@ export async function GET(request) {
       momento,
       estudiantes: await Promise.all(estudiantesFiltrados.map(async estudiante => {
         const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
-        const calificacionesEstudiante = calificacionesPorMateria[estudianteId] || [];
+        
+        // Obtener las materias asignadas del estudiante ANTES de obtener las calificaciones
+        let materiasAsignadasEstudiante = [];
+        if (estudiante.materiasAsignadas === undefined || estudiante.materiasAsignadas === null) {
+          // Para estudiantes antiguos sin el campo, mostrar todas las materias
+          materiasAsignadasEstudiante = asignaciones.map(asig => asig.materia.id);
+          console.log(`📋 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Sin materiasAsignadas en reporte, mostrando todas`);
+        } else if (Array.isArray(estudiante.materiasAsignadas) && estudiante.materiasAsignadas.length > 0) {
+          materiasAsignadasEstudiante = estudiante.materiasAsignadas;
+          console.log(`📋 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Tiene ${materiasAsignadasEstudiante.length} materias asignadas en reporte:`, materiasAsignadasEstudiante);
+        } else {
+          materiasAsignadasEstudiante = [];
+          console.log(`📋 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Array vacío en reporte, no verá ninguna materia`);
+        }
+        
+        // Filtrar calificaciones para mostrar solo las materias asignadas
+        let calificacionesEstudiante = calificacionesPorMateria[estudianteId] || [];
+        
+        // Aplicar filtro final por si acaso
+        if (calificacionesEstudiante.length > 0 && materiasAsignadasEstudiante.length > 0) {
+          calificacionesEstudiante = calificacionesEstudiante.filter(cal => {
+            // Si tiene materiaId, usarlo directamente
+            if (cal.materiaId) {
+              return materiasAsignadasEstudiante.includes(cal.materiaId);
+            }
+            // Si no, buscar por nombre
+            const asignacion = asignaciones.find(asig => asig.materia.nombre === cal.materia);
+            return asignacion && materiasAsignadasEstudiante.includes(asignacion.materia.id);
+          });
+          console.log(`📋 Filtrado final para ${estudiante.nombre} ${estudiante.apellido}: ${calificacionesEstudiante.length} materias`);
+        } else if (materiasAsignadasEstudiante.length === 0) {
+          // Si no tiene materias asignadas, no mostrar ninguna
+          calificacionesEstudiante = [];
+          console.log(`📋 Sin materias asignadas para ${estudiante.nombre} ${estudiante.apellido}, calificaciones vacías`);
+        }
         
         // Buscar la información completa del estudiante en la colección Estudiante
         let cedula = 'N/D';

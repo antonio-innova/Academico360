@@ -83,8 +83,8 @@ const ExcelPreviewModal = ({ isOpen, onClose, excelData, fileName, onDownload })
   console.log('✅ Modal SÍ renderiza - Mostrando datos');
 
   return (
-    <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full h-[95vh] max-w-7xl shadow-2xl transform scale-100 flex flex-col">
+    <div className="fixed inset-0 z-50 overflow-hidden bg-black bg-opacity-75 backdrop-blur-sm flex items-center justify-center p-2">
+      <div className="bg-white dark:bg-gray-800 rounded-2xl w-full h-[98vh] max-w-[98vw] shadow-2xl transform scale-100 flex flex-col">
         <div className="flex justify-between items-center px-6 py-4 border-b border-gray-200 dark:border-gray-700 bg-gradient-to-r from-green-600 to-green-700 rounded-t-2xl">
           <h3 className="text-2xl font-bold text-white flex items-center space-x-2">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -103,15 +103,16 @@ const ExcelPreviewModal = ({ isOpen, onClose, excelData, fileName, onDownload })
           </button>
         </div>
         
-        <div className="flex-1 p-6 bg-gray-50 dark:bg-gray-900 overflow-auto">
+        <div className="flex-1 p-4 bg-gray-50 dark:bg-gray-900 overflow-auto">
           <div className="bg-white dark:bg-gray-800 rounded-xl shadow-inner overflow-x-auto">
-            <table className="min-w-full divide-y divide-gray-200 dark:divide-gray-700">
+            <table className="w-full divide-y divide-gray-200 dark:divide-gray-700 table-fixed">
               <thead className="bg-gray-100 dark:bg-gray-700 sticky top-0">
                 <tr>
                   {excelData.headers?.map((header, index) => (
                     <th
                       key={index}
-                      className="px-4 py-3 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600 whitespace-nowrap"
+                      className="px-2 py-2 text-left text-xs font-bold text-gray-700 dark:text-gray-200 uppercase tracking-wider border-r border-gray-300 dark:border-gray-600 break-words"
+                      style={{ width: index < 3 ? 'auto' : '60px', minWidth: index < 3 ? '80px' : '50px' }}
                     >
                       {header}
                     </th>
@@ -124,7 +125,8 @@ const ExcelPreviewModal = ({ isOpen, onClose, excelData, fileName, onDownload })
                     {row.map((cell, cellIndex) => (
                       <td
                         key={cellIndex}
-                        className="px-4 py-3 text-sm text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 whitespace-nowrap"
+                        className="px-2 py-2 text-sm text-gray-900 dark:text-gray-100 border-r border-gray-200 dark:border-gray-700 text-center"
+                        style={{ width: cellIndex < 3 ? 'auto' : '60px', minWidth: cellIndex < 3 ? '80px' : '50px' }}
                       >
                         {cell !== null && cell !== undefined ? String(cell) : ''}
                       </td>

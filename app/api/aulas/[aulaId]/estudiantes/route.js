@@ -61,7 +61,7 @@ export async function POST(request, { params }) {
       }, { status: 415 });
     }
 
-    const { estudianteId } = await request.json();
+    const { estudianteId, materiasAsignadas } = await request.json();
 
     if (!estudianteId) {
       return NextResponse.json({
@@ -94,34 +94,118 @@ export async function POST(request, { params }) {
       }, { status: 404 });
     }
 
-    // Evitar duplicados básicos por nombre y apellido
-    const yaInscrito = (aula.alumnos || []).some(al => 
-      (al.nombre || '').trim().toLowerCase() === estudiante.nombre.trim().toLowerCase() &&
-      (al.apellido || '').trim().toLowerCase() === estudiante.apellido.trim().toLowerCase()
-    );
+    // Preparar el objeto del alumno con sus materias asignadas
+    const nuevoAlumno = {
+      nombre: estudiante.nombre,
+      apellido: estudiante.apellido,
+      _id: estudiante._id.toString(),
+      cedula: estudiante.idU || estudiante.cedula || '',
+      idU: estudiante.idU || estudiante.cedula || '',
+      // SIEMPRE agregar materias asignadas (incluso si está vacío)
+      materiasAsignadas: (materiasAsignadas && Array.isArray(materiasAsignadas) && materiasAsignadas.length > 0) 
+        ? materiasAsignadas 
+        : []
+    };
 
-    if (yaInscrito) {
-      return NextResponse.json({
-        success: true,
-        message: 'El alumno ya está inscrito en el aula'
+    console.log('📝 Guardando estudiante con materias asignadas:', {
+      nombre: nuevoAlumno.nombre,
+      apellido: nuevoAlumno.apellido,
+      _id: nuevoAlumno._id,
+      materiasAsignadas: nuevoAlumno.materiasAsignadas,
+      cantidad: nuevoAlumno.materiasAsignadas.length
+    });
+
+    // Verificar si el estudiante ya existe en el aula
+    const alumnosActuales = aula.alumnos || [];
+    const estudianteExistente = alumnosActuales.find(al => {
+      // Buscar por _id (puede ser string o ObjectId)
+      const alId = al._id ? (typeof al._id === 'string' ? al._id : al._id.toString()) : null;
+      const nuevoId = nuevoAlumno._id;
+      
+      if (alId === nuevoId) return true;
+      
+      // También buscar por nombre y apellido (case insensitive)
+      const nombreMatch = (al.nombre || '').trim().toLowerCase() === nuevoAlumno.nombre.trim().toLowerCase();
+      const apellidoMatch = (al.apellido || '').trim().toLowerCase() === nuevoAlumno.apellido.trim().toLowerCase();
+      
+      return nombreMatch && apellidoMatch;
+    });
+
+    if (estudianteExistente) {
+      console.log('🔄 Estudiante ya existe, actualizando materias asignadas...');
+      
+      // Si ya existe, actualizar sus materias asignadas usando el índice del array
+      const indiceEstudiante = alumnosActuales.findIndex(al => {
+        const alId = al._id ? (typeof al._id === 'string' ? al._id : al._id.toString()) : null;
+        return alId === nuevoAlumno._id || 
+               ((al.nombre || '').trim().toLowerCase() === nuevoAlumno.nombre.trim().toLowerCase() &&
+                (al.apellido || '').trim().toLowerCase() === nuevoAlumno.apellido.trim().toLowerCase());
+      });
+
+      if (indiceEstudiante >= 0) {
+        // Actualizar usando el índice
+        const updateResult = await Aula.updateOne(
+          { _id: aulaId },
+          {
+            $set: {
+              [`alumnos.${indiceEstudiante}.materiasAsignadas`]: nuevoAlumno.materiasAsignadas
+            }
+          }
+        );
+        
+        console.log('✅ Resultado de actualización:', {
+          matchedCount: updateResult.matchedCount,
+          modifiedCount: updateResult.modifiedCount
+        });
+      } else {
+        console.log('⚠️ No se encontró el índice del estudiante, intentando método alternativo...');
+        // Método alternativo: actualizar todo el array
+        const alumnosActualizados = alumnosActuales.map(al => {
+          const alId = al._id ? (typeof al._id === 'string' ? al._id : al._id.toString()) : null;
+          const nombreMatch = (al.nombre || '').trim().toLowerCase() === nuevoAlumno.nombre.trim().toLowerCase();
+          const apellidoMatch = (al.apellido || '').trim().toLowerCase() === nuevoAlumno.apellido.trim().toLowerCase();
+          
+          if (alId === nuevoAlumno._id || (nombreMatch && apellidoMatch)) {
+            return {
+              ...al,
+              materiasAsignadas: nuevoAlumno.materiasAsignadas
+            };
+          }
+          return al;
+        });
+        
+        await Aula.updateOne(
+          { _id: aulaId },
+          {
+            $set: {
+              alumnos: alumnosActualizados
+            }
+          }
+        );
+        
+        console.log('✅ Actualizado usando método alternativo');
+      }
+    } else {
+      console.log('➕ Estudiante no existe, agregando nuevo...');
+      // Si no existe, agregarlo con $push
+      const pushResult = await Aula.updateOne(
+        { _id: aulaId },
+        {
+          $push: {
+            alumnos: nuevoAlumno
+          }
+        }
+      );
+      
+      console.log('✅ Resultado de inserción:', {
+        matchedCount: pushResult.matchedCount,
+        modifiedCount: pushResult.modifiedCount
       });
     }
 
-    // Intento atómico y eficiente para minimizar condiciones de carrera
-    const updateResult = await Aula.updateOne(
-      { _id: aulaId },
-      {
-        $addToSet: {
-          alumnos: {
-            nombre: estudiante.nombre,
-            apellido: estudiante.apellido
-          }
-        }
-      }
-    );
+    // Obtener versión actualizada
+    const aulaActualizada = await Aula.findById(aulaId);
 
-    // Obtener versión actualizada solo si realmente cambió
-    const aulaActualizada = updateResult.modifiedCount > 0 ? await Aula.findById(aulaId) : aula;
 
     return NextResponse.json({
       success: true,
