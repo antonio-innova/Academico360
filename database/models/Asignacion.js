@@ -42,7 +42,7 @@ const actividadSchema = new mongoose.Schema({
     },
     nota: {
       type: Number,
-      required: true,
+      required: false, // No requerido para permitir NP e Inasistente
       min: 0,
       max: 100
     },
@@ -53,7 +53,7 @@ const actividadSchema = new mongoose.Schema({
     },
     tipoCalificacion: {
       type: String,
-      enum: ['numerica', 'alfabetica'],
+      enum: ['numerica', 'alfabetica', 'np', 'inasistente'],
       default: 'numerica'
     },
     imagenUrl: {

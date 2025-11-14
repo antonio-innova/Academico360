@@ -19,8 +19,13 @@ export async function POST(request, { params }) {
     const tipoCalificacion = data.tipoCalificacion || (data.notaAlfabetica ? 'alfabetica' : 'numerica');
     const calificacion = {
       alumnoId: data.alumnoId,
-      nota: data.nota !== undefined && data.nota !== null ? Number(data.nota) : undefined,
-      notaAlfabetica: data.notaAlfabetica,
+      // Si es NP o Inasistente, nota puede ser null/undefined
+      nota: (data.tipoCalificacion === 'np' || data.tipoCalificacion === 'inasistente') 
+        ? null 
+        : (data.nota !== undefined && data.nota !== null ? Number(data.nota) : undefined),
+      notaAlfabetica: (data.tipoCalificacion === 'np' || data.tipoCalificacion === 'inasistente') 
+        ? '' 
+        : data.notaAlfabetica,
       tipoCalificacion,
       observaciones: data.observaciones || '',
       evidencia: data.evidencia || '',

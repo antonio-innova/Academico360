@@ -337,8 +337,6 @@
   display: flex;
   flex-direction: column;
   gap: 30px;
-  max-height: 700px;
-  overflow-y: auto;
 }
 
 .momentSection {

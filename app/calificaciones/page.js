@@ -1044,7 +1044,16 @@ function CalificacionesContent() {
             return id === String(al._id);
           });
           const tipo = cal?.tipoCalificacion || (cal?.notaAlfabetica ? 'alfabetica' : 'numerica');
-          const valor = tipo === 'alfabetica' ? (cal?.notaAlfabetica || '-') : (cal?.nota ?? '-');
+          let valor = '-';
+          if (tipo === 'np') {
+            valor = 'NP';
+          } else if (tipo === 'inasistente') {
+            valor = 'I';
+          } else if (tipo === 'alfabetica') {
+            valor = cal?.notaAlfabetica || '-';
+          } else {
+            valor = cal?.nota ?? '-';
+          }
           rows.push({
             alumno: `${al.nombre || ''} ${al.apellido || ''}`.trim(),
             momento: momentoSel,
@@ -1076,10 +1085,14 @@ function CalificacionesContent() {
     const calificaciones = actividadesMomento.map(actividad => {
       const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
       if (!calificacion) return null;
+      // Si es NP o Inasistente, no se incluye en el promedio
+      if (calificacion.tipoCalificacion === 'np' || calificacion.tipoCalificacion === 'inasistente') {
+        return null;
+      }
       return calificacion.tipoCalificacion === 'alfabetica' 
         ? convertirLetraANota(calificacion.notaAlfabetica)
-        : parseFloat(calificacion.nota);
-    }).filter(nota => nota !== null);
+        : (calificacion.nota !== null && calificacion.nota !== undefined ? parseFloat(calificacion.nota) : null);
+    }).filter(nota => nota !== null && !isNaN(nota));
     
     // Calcular promedio ponderado
     const porcentajes = actividadesMomento.map(actividad => parseFloat(actividad.porcentaje) || 0);
@@ -1895,8 +1908,8 @@ function CalificacionesContent() {
     setCalificacionFormData({
       actividadId: actividad._id,
       alumnoId: calificacion.alumnoId,
-      nota: calificacion.nota,
-      notaAlfabetica: calificacion.notaAlfabetica || 'C',
+      nota: calificacion.nota || (calificacion.tipoCalificacion === 'np' || calificacion.tipoCalificacion === 'inasistente' ? null : 10),
+      notaAlfabetica: calificacion.notaAlfabetica || (calificacion.tipoCalificacion === 'np' || calificacion.tipoCalificacion === 'inasistente' ? '' : 'C'),
       tipoCalificacion: calificacion.tipoCalificacion || 'numerica',
       modoEdicion: true,
       calificacionId: calificacion._id,
@@ -2366,7 +2379,7 @@ const handleSeleccionActividad = (actividadId) => {
       }
       
       // Validar la calificación según el tipo seleccionado
-      let nota = 10;
+      let nota = null;
       let notaAlfabetica = '';
       
       if (calificacionFormData.tipoCalificacion === 'numerica' && !debeSerAlfabetica) {
@@ -2387,7 +2400,7 @@ const handleSeleccionActividad = (actividadId) => {
           return 'F';
         };
         notaAlfabetica = convertirNotaALetra(nota);
-      } else {
+      } else if (calificacionFormData.tipoCalificacion === 'alfabetica') {
         // Si es calificación alfabética
         notaAlfabetica = calificacionFormData.notaAlfabetica;
         if (!notaAlfabetica || !['A', 'B', 'C', 'D'].includes(notaAlfabetica)) {
@@ -2408,6 +2421,11 @@ const handleSeleccionActividad = (actividadId) => {
           return conversion[letra] || 0;
         };
         nota = convertirLetraANota(notaAlfabetica);
+      } else if (calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente') {
+        // Si es NP o Inasistente, no se requiere nota numérica ni alfabética
+        nota = null;
+        notaAlfabetica = '';
+        // El tipoCalificacion ya está establecido como 'np' o 'inasistente'
       }
       
       // Obtener las observaciones del formulario
@@ -2419,8 +2437,10 @@ const handleSeleccionActividad = (actividadId) => {
       // Crear el objeto de calificación
       let calificacionData = {
         alumnoId: alumnoId,
-        nota: tipoCalificacion === 'numerica' ? Math.max(1, Math.min(20, parseInt(calificacionFormData.nota, 10) || 1)) : null,
-        notaAlfabetica: tipoCalificacion === 'alfabetica' ? calificacionFormData.notaAlfabetica : null,
+        nota: (tipoCalificacion === 'numerica' && nota !== null) ? Math.max(1, Math.min(20, nota)) : 
+              (tipoCalificacion === 'alfabetica' && nota !== null) ? nota : null,
+        notaAlfabetica: tipoCalificacion === 'alfabetica' ? calificacionFormData.notaAlfabetica : 
+                       (tipoCalificacion === 'np' || tipoCalificacion === 'inasistente') ? '' : null,
         tipoCalificacion: tipoCalificacion,
         observaciones: calificacionFormData.observaciones || '',
         evidencia: evidenciaBase64 || ''
@@ -2652,9 +2672,21 @@ const handleSeleccionActividad = (actividadId) => {
       actividades.forEach(actividad => {
         const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumno.id);
         if (calificacion) {
-          totalNotas += calificacion.nota;
-          totalActividades++;
-          printWindow.document.write(`<td>${calificacion.nota}</td>`);
+          // Solo sumar si no es NP o Inasistente
+          if (calificacion.tipoCalificacion !== 'np' && calificacion.tipoCalificacion !== 'inasistente' && calificacion.nota !== null && calificacion.nota !== undefined) {
+            totalNotas += calificacion.nota;
+            totalActividades++;
+          }
+          // Mostrar la calificación según el tipo
+          if (calificacion.tipoCalificacion === 'np') {
+            printWindow.document.write('<td>NP</td>');
+          } else if (calificacion.tipoCalificacion === 'inasistente') {
+            printWindow.document.write('<td>I</td>');
+          } else if (calificacion.tipoCalificacion === 'alfabetica') {
+            printWindow.document.write(`<td>${calificacion.notaAlfabetica || 'N/A'}</td>`);
+          } else {
+            printWindow.document.write(`<td>${calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}</td>`);
+          }
         } else {
           printWindow.document.write('<td>N/A</td>');
         }
@@ -2956,7 +2988,7 @@ const handleSeleccionActividad = (actividadId) => {
             <p>No hay actividades registradas para esta asignación.</p>
           ) : (
             <div className={actividadesVisible ? '' : styles.hidden}>
-              <div style={{ overflowX: 'auto', maxHeight: '500px', overflowY: 'auto' }}>
+              <div style={{ overflowX: 'auto' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>
@@ -3263,12 +3295,20 @@ const handleSeleccionActividad = (actividadId) => {
                                     {calificacion ? (
                                       <>
                                         {calificacion.tipoCalificacion === 'alfabetica' ? (
-                                          <span title={`Nota numérica equivalente: ${calificacion.nota}`}>
+                                          <span title={`Nota numérica equivalente: ${calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}`}>
                                             {calificacion.notaAlfabetica || 'N/A'}
+                                          </span>
+                                        ) : calificacion.tipoCalificacion === 'np' ? (
+                                          <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="No Presentó">
+                                            NP
+                                          </span>
+                                        ) : calificacion.tipoCalificacion === 'inasistente' ? (
+                                          <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="Inasistente">
+                                            I
                                           </span>
                                         ) : (
                                           <span title={`Nota alfabética equivalente: ${calificacion.notaAlfabetica || 'N/A'}`}>
-                                            {calificacion.nota}
+                                            {calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}
                                           </span>
                                         )}
                                         
@@ -3652,12 +3692,19 @@ const handleSeleccionActividad = (actividadId) => {
                     actividadesMomento2.forEach(actividad => {
                       const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumno._id || alumno.id);
                       if (calificacion) {
-                        if (usarCalificacionAlfabetica) {
-                          notasAlfabeticas.push(calificacion.notaAlfabetica || convertirNotaALetra(calificacion.nota));
-                        } else {
-                          totalNotas += parseFloat(calificacion.nota);
+                        // Solo incluir si no es NP o Inasistente
+                        if (calificacion.tipoCalificacion !== 'np' && calificacion.tipoCalificacion !== 'inasistente') {
+                          if (usarCalificacionAlfabetica) {
+                            const notaParaConvertir = calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 0;
+                            notasAlfabeticas.push(calificacion.notaAlfabetica || convertirNotaALetra(notaParaConvertir));
+                          } else {
+                            const notaNum = calificacion.nota !== null && calificacion.nota !== undefined ? parseFloat(calificacion.nota) : 0;
+                            if (!isNaN(notaNum)) {
+                              totalNotas += notaNum;
+                            }
+                          }
+                          totalActividades++;
                         }
-                        totalActividades++;
                       }
                     });
                     
@@ -3717,9 +3764,17 @@ const handleSeleccionActividad = (actividadId) => {
                                   <span title={`Nota numérica equivalente: ${calificacion.nota}`}>
                                     {calificacion.notaAlfabetica || 'N/A'}
                                   </span>
+                                ) : calificacion.tipoCalificacion === 'np' ? (
+                                  <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="No Presentó">
+                                    NP
+                                  </span>
+                                ) : calificacion.tipoCalificacion === 'inasistente' ? (
+                                  <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="Inasistente">
+                                    I
+                                  </span>
                                 ) : (
                                   <span title={`Nota alfabética equivalente: ${calificacion.notaAlfabetica || 'N/A'}`}>
-                                    {calificacion.nota}
+                                    {calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}
                                   </span>
                                 )}
                               </>
@@ -4006,12 +4061,19 @@ const handleSeleccionActividad = (actividadId) => {
                     actividadesMomento3.forEach(actividad => {
                       const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumno._id || alumno.id);
                       if (calificacion) {
-                        if (usarCalificacionAlfabetica) {
-                          notasAlfabeticas.push(calificacion.notaAlfabetica || convertirNotaALetra(calificacion.nota));
-                        } else {
-                          totalNotas += parseFloat(calificacion.nota);
+                        // Solo incluir si no es NP o Inasistente
+                        if (calificacion.tipoCalificacion !== 'np' && calificacion.tipoCalificacion !== 'inasistente') {
+                          if (usarCalificacionAlfabetica) {
+                            const notaParaConvertir = calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 0;
+                            notasAlfabeticas.push(calificacion.notaAlfabetica || convertirNotaALetra(notaParaConvertir));
+                          } else {
+                            const notaNum = calificacion.nota !== null && calificacion.nota !== undefined ? parseFloat(calificacion.nota) : 0;
+                            if (!isNaN(notaNum)) {
+                              totalNotas += notaNum;
+                            }
+                          }
+                          totalActividades++;
                         }
-                        totalActividades++;
                       }
                     });
                     
@@ -4072,9 +4134,17 @@ const handleSeleccionActividad = (actividadId) => {
                                   <span title={`Nota numérica equivalente: ${calificacion.nota}`}>
                                     {calificacion.notaAlfabetica || 'N/A'}
                                   </span>
+                                ) : calificacion.tipoCalificacion === 'np' ? (
+                                  <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="No Presentó">
+                                    NP
+                                  </span>
+                                ) : calificacion.tipoCalificacion === 'inasistente' ? (
+                                  <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="Inasistente">
+                                    I
+                                  </span>
                                 ) : (
                                   <span title={`Nota alfabética equivalente: ${calificacion.notaAlfabetica || 'N/A'}`}>
-                                    {calificacion.nota}
+                                    {calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}
                                   </span>
                                 )}
                               </>
@@ -4418,29 +4488,92 @@ const handleSeleccionActividad = (actividadId) => {
               </div>
               
               <div className={styles.formGroup}>
-                <div style={{ display: 'flex', alignItems: 'center', marginBottom: '10px' }}>
-                  <input
-                    type="checkbox"
-                    id="tipoCalificacion"
-                    checked={calificacionFormData.tipoCalificacion === 'alfabetica'}
-                    onChange={(e) => {
-                      const nuevoTipo = e.target.checked ? 'alfabetica' : 'numerica';
+                <label style={{ marginBottom: '10px', display: 'block', fontWeight: 'bold' }}>Tipo de Calificación:</label>
+                
+                {/* Pestañas para seleccionar el tipo de calificación */}
+                <div style={{ 
+                  display: 'flex', 
+                  borderBottom: '2px solid #e0e0e0',
+                  marginBottom: '15px',
+                  gap: '5px'
+                }}>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (asignacion?.materia?.nombre !== 'Orientación' && asignacion?.materia?.nombre !== 'Grupo y Participación') {
+                        setCalificacionFormData({
+                          ...calificacionFormData,
+                          tipoCalificacion: 'numerica'
+                        });
+                      }
+                    }}
+                    disabled={asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación'}
+                    style={{
+                      flex: 1,
+                      padding: '10px 15px',
+                      border: 'none',
+                      borderBottom: calificacionFormData.tipoCalificacion === 'numerica' ? '3px solid #4CAF50' : '3px solid transparent',
+                      backgroundColor: calificacionFormData.tipoCalificacion === 'numerica' ? '#f0f9f0' : 'transparent',
+                      color: calificacionFormData.tipoCalificacion === 'numerica' ? '#4CAF50' : '#666',
+                      fontWeight: calificacionFormData.tipoCalificacion === 'numerica' ? 'bold' : 'normal',
+                      cursor: (asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación') ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.3s'
+                    }}
+                  >
+                    Numérica
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
                       setCalificacionFormData({
                         ...calificacionFormData,
-                        tipoCalificacion: nuevoTipo
+                        tipoCalificacion: 'alfabetica'
                       });
                     }}
-                    style={{ marginRight: '8px' }}
+                    style={{
+                      flex: 1,
+                      padding: '10px 15px',
+                      border: 'none',
+                      borderBottom: calificacionFormData.tipoCalificacion === 'alfabetica' ? '3px solid #2196F3' : '3px solid transparent',
+                      backgroundColor: calificacionFormData.tipoCalificacion === 'alfabetica' ? '#e3f2fd' : 'transparent',
+                      color: calificacionFormData.tipoCalificacion === 'alfabetica' ? '#2196F3' : '#666',
+                      fontWeight: calificacionFormData.tipoCalificacion === 'alfabetica' ? 'bold' : 'normal',
+                      cursor: 'pointer',
+                      transition: 'all 0.3s'
+                    }}
+                  >
+                    Alfabética
+                  </button>
+                  
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (asignacion?.materia?.nombre !== 'Orientación' && asignacion?.materia?.nombre !== 'Grupo y Participación') {
+                        setCalificacionFormData({
+                          ...calificacionFormData,
+                          tipoCalificacion: 'np'
+                        });
+                      }
+                    }}
                     disabled={asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación'}
-                  />
-                  <label htmlFor="tipoCalificacion" style={{ cursor: asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación' ? 'not-allowed' : 'pointer' }}>
-                    Usar calificación alfabética (A-D)
-                    {(asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación') && 
-                      <span style={{ marginLeft: '8px', color: '#666', fontStyle: 'italic' }}>(Requerido para esta materia)</span>
-                    }
-                  </label>
+                    style={{
+                      flex: 1,
+                      padding: '10px 15px',
+                      border: 'none',
+                      borderBottom: calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente' ? '3px solid #FF9800' : '3px solid transparent',
+                      backgroundColor: (calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente') ? '#fff3e0' : 'transparent',
+                      color: (calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente') ? '#FF9800' : '#666',
+                      fontWeight: (calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente') ? 'bold' : 'normal',
+                      cursor: (asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación') ? 'not-allowed' : 'pointer',
+                      transition: 'all 0.3s'
+                    }}
+                  >
+                    NP / I
+                  </button>
                 </div>
                 
+                {/* Contenido según el tipo seleccionado */}
                 {calificacionFormData.tipoCalificacion === 'numerica' ? (
                   <>
                     <label htmlFor="nota">Calificación numérica (1-20):</label>
@@ -4450,7 +4583,7 @@ const handleSeleccionActividad = (actividadId) => {
                       min="1"
                       max="20"
                       step="1"
-                      value={calificacionFormData.nota}
+                      value={calificacionFormData.nota || ''}
                       onChange={(e) => {
                         // Forzar entero entre 1 y 20
                         const valor = parseInt(e.target.value, 10);
@@ -4469,7 +4602,7 @@ const handleSeleccionActividad = (actividadId) => {
                       La calificación máxima permitida es 20
                     </small>
                   </>
-                ) : (
+                ) : calificacionFormData.tipoCalificacion === 'alfabetica' ? (
                   <>
                     <label htmlFor="notaAlfabetica">Calificación alfabética:</label>
                     <select
@@ -4484,7 +4617,29 @@ const handleSeleccionActividad = (actividadId) => {
                       <option key="nota-D" value="D">D (10-01)</option>
                     </select>
                   </>
-                )}
+                ) : (calificacionFormData.tipoCalificacion === 'np' || calificacionFormData.tipoCalificacion === 'inasistente') ? (
+                  <>
+                    <label htmlFor="tipoNP">Seleccione el motivo:</label>
+                    <select
+                      id="tipoNP"
+                      value={calificacionFormData.tipoCalificacion}
+                      onChange={(e) => setCalificacionFormData({...calificacionFormData, tipoCalificacion: e.target.value})}
+                      required
+                    >
+                      <option key="np-option" value="np">NP - No Presentó</option>
+                      <option key="inasistente-option" value="inasistente">I - Inasistente</option>
+                    </select>
+                    <small style={{ display: 'block', color: '#666', marginTop: '5px' }}>
+                      NP: El estudiante no presentó la actividad | I: El estudiante estuvo inasistente
+                    </small>
+                  </>
+                ) : null}
+                
+                {(asignacion?.materia?.nombre === 'Orientación' || asignacion?.materia?.nombre === 'Grupo y Participación') && 
+                  <small style={{ display: 'block', color: '#666', marginTop: '5px', fontStyle: 'italic' }}>
+                    Esta materia requiere calificación alfabética
+                  </small>
+                }
               </div>
               
               <div className={styles.formGroup}>
@@ -4645,8 +4800,6 @@ const handleSeleccionActividad = (actividadId) => {
             </div>
             <div className={styles.modalContent} style={{ 
               padding: '20px', 
-              maxHeight: '60vh', 
-              overflowY: 'auto',
               backgroundColor: '#fff',
               flex: 1
             }}>
@@ -4748,9 +4901,7 @@ const handleSeleccionActividad = (actividadId) => {
               padding: '20px', 
               textAlign: 'center',
               backgroundColor: '#fff',
-              flex: 1,
-              overflowY: 'auto',
-              maxHeight: '60vh' // Limitar altura y forzar scroll
+              flex: 1
             }}>
               {modalEvidencia.url ? (
                 <>
@@ -4872,7 +5023,7 @@ const handleSeleccionActividad = (actividadId) => {
               
               <div style={{marginBottom: '20px'}}>
                 <h3>Calificaciones por Estudiante:</h3>
-                <div style={{maxHeight: '400px', overflowY: 'auto', border: '1px solid #ddd', padding: '10px'}}>
+                <div style={{border: '1px solid #ddd', padding: '10px'}}>
                   {batchCalificacionData.calificaciones.map((calificacion, index) => (
                     <div key={calificacion.alumnoId} style={{
                       marginBottom: '15px',
@@ -4895,7 +5046,7 @@ const handleSeleccionActividad = (actividadId) => {
                             type="number"
                             min="1"
                             max="20"
-                            value={calificacion.nota}
+                            value={calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : ''}
                             onChange={(e) => {
                               const nuevasCalificaciones = [...batchCalificacionData.calificaciones];
                               nuevasCalificaciones[index].nota = e.target.value;
@@ -5038,7 +5189,7 @@ const handleSeleccionActividad = (actividadId) => {
               <button onClick={closePreviewNotas} className={styles.closeButton} style={{ background: 'none', border: 'none', fontSize: '22px', cursor: 'pointer' }}>&times;</button>
             </div>
             <div className={styles.modalContent} style={{ padding: '16px', overflow: 'auto' }}>
-              <div style={{ overflowX: 'auto', maxHeight: '65vh' }}>
+              <div style={{ overflowX: 'auto' }}>
                 <table className={styles.table}>
                   <thead>
                     <tr>

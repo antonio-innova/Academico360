@@ -36,8 +36,14 @@ export async function PUT(request, { params }) {
     // Manejar los datos según el tipo de contenido
     if (contentType && contentType.includes('application/json')) {
       // Si es JSON
-      if (data.nota !== undefined) actualizacion.nota = Number(data.nota);
-      if (data.notaAlfabetica !== undefined) actualizacion.notaAlfabetica = data.notaAlfabetica;
+      if (data.tipoCalificacion === 'np' || data.tipoCalificacion === 'inasistente') {
+        // Si es NP o Inasistente, nota debe ser null
+        actualizacion.nota = null;
+        actualizacion.notaAlfabetica = '';
+      } else {
+        if (data.nota !== undefined) actualizacion.nota = data.nota !== null ? Number(data.nota) : null;
+        if (data.notaAlfabetica !== undefined) actualizacion.notaAlfabetica = data.notaAlfabetica;
+      }
       if (data.tipoCalificacion !== undefined) actualizacion.tipoCalificacion = data.tipoCalificacion;
       if (data.observaciones !== undefined) actualizacion.observaciones = data.observaciones;
       if (data.evidencia !== undefined) actualizacion.evidencia = data.evidencia;
@@ -45,8 +51,15 @@ export async function PUT(request, { params }) {
       console.log('Evidencia recibida en actualización:', data.evidencia);
     } else {
       // Si es FormData
-      if (data.get('nota')) actualizacion.nota = Number(data.get('nota'));
-      if (data.get('notaAlfabetica')) actualizacion.notaAlfabetica = data.get('notaAlfabetica');
+      const tipoCalif = data.get('tipoCalificacion');
+      if (tipoCalif === 'np' || tipoCalif === 'inasistente') {
+        // Si es NP o Inasistente, nota debe ser null
+        actualizacion.nota = null;
+        actualizacion.notaAlfabetica = '';
+      } else {
+        if (data.get('nota')) actualizacion.nota = Number(data.get('nota'));
+        if (data.get('notaAlfabetica')) actualizacion.notaAlfabetica = data.get('notaAlfabetica');
+      }
       if (data.get('tipoCalificacion')) actualizacion.tipoCalificacion = data.get('tipoCalificacion');
       if (data.get('evidencia')) actualizacion.evidencia = data.get('evidencia');
       
