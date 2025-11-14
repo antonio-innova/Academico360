@@ -65,16 +65,48 @@ export async function GET(request) {
       const apellido = (estDoc?.apellido && estDoc.apellido.trim()) || alumno.apellido || '';
       const nombre = (estDoc?.nombre && estDoc.nombre.trim()) || alumno.nombre || '';
 
+      // Obtener las materias asignadas del estudiante
+      let materiasAsignadas = [];
+      let tieneRestricciones = false;
+      
+      // Si el estudiante no tiene materiasAsignadas definidas o tiene array vacío, asume que ve todas (compatibilidad hacia atrás)
+      if (alumno.materiasAsignadas === undefined || alumno.materiasAsignadas === null || 
+          (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length === 0)) {
+        // Para estudiantes antiguos sin el campo o con array vacío, todas las materias están asignadas
+        materiasAsignadas = asignacionesAula.map(asig => asig.materia?.id).filter(Boolean);
+        tieneRestricciones = false; // No tiene restricciones, ve todas
+        console.log(`📊 Sabana - Estudiante ${nombre} ${apellido}: Sin materiasAsignadas o array vacío, todas las materias asignadas (${materiasAsignadas.length} materias)`);
+      } else if (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length > 0) {
+        // Si tiene materias asignadas, usar solo esas (tiene restricciones)
+        materiasAsignadas = alumno.materiasAsignadas;
+        tieneRestricciones = true; // Tiene restricciones
+        console.log(`📊 Sabana - Estudiante ${nombre} ${apellido}: Tiene ${materiasAsignadas.length} materias asignadas:`, materiasAsignadas);
+      }
+
       const detallePorMateria = {};
       for (const asig of asignacionesAula) {
         const nombreMateria = asig.materia?.nombre || 'Materia';
+        const materiaId = asig.materia?.id;
         const bloqueado = asig.momentosBloqueados?.[momento] === true;
+        
         if (!detallePorMateria[nombreMateria]) detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
+        
         if (bloqueado) {
           detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
           continue;
         }
 
+        // Si el estudiante tiene restricciones Y NO tiene esta materia asignada, mostrar "AP"
+        if (tieneRestricciones && materiaId && !materiasAsignadas.includes(materiaId)) {
+          console.log(`  📝 Sabana - Materia NO asignada con "AP": ${nombreMateria} (ID: ${materiaId}) para ${nombre} ${apellido}`);
+          detallePorMateria[nombreMateria] = { 
+            ev: ['AP', 'AP', 'AP', 'AP', 'AP', 'AP', 'AP', 'AP'], 
+            nf: 'AP' 
+          };
+          continue;
+        }
+
+        // Si el estudiante NO tiene restricciones O tiene la materia asignada, procesar notas normalmente
         const actividades = Array.isArray(asig.actividades) ? asig.actividades : [];
         const parseFecha = (f) => {
           if (!f) return 0;
