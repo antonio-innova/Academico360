@@ -189,11 +189,12 @@ const aulaSchema = new mongoose.Schema({
         },
         notaAlfabetica: {
           type: String,
-          enum: ['A', 'B', 'C', 'D', 'E', 'F']
+          enum: ['A', 'B', 'C', 'D', 'E', 'F', ''],
+          default: ''
         },
         tipoCalificacion: {
           type: String,
-          enum: ['numerica', 'alfabetica'],
+          enum: ['numerica', 'alfabetica', 'np', 'inasistente'],
           default: 'numerica'
         },
         observaciones: {

@@ -3254,27 +3254,45 @@ const handleSeleccionActividad = (actividadId) => {
                           return momento === momentoActivo;
                         });
 
-                        // Obtener calificaciones del alumno para las actividades del momento
-                        const calificacionesAlumno = actividadesMomento.map(actividad => {
+                        // Preparar calificaciones válidas con sus porcentajes
+                        const calificacionesValidas = actividadesMomento.reduce((acumulado, actividad) => {
                           const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
-                          return calificacion;
-                        });
+                          if (!calificacion) return acumulado;
 
-                        // Calcular el promedio de calificaciones para este alumno
-                        const calificaciones = actividadesMomento.map(actividad => {
-                          const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
-                          if (!calificacion) return null;
-                          return calificacion.tipoCalificacion === 'alfabetica' 
-                            ? convertirLetraANota(calificacion.notaAlfabetica)
-                            : parseFloat(calificacion.nota);
-                        }).filter(nota => nota !== null);
+                          let notaConvertida = null;
+                          if (calificacion.tipoCalificacion === 'alfabetica') {
+                            notaConvertida = convertirLetraANota(calificacion.notaAlfabetica);
+                          } else if (calificacion.nota !== null && calificacion.nota !== undefined) {
+                            notaConvertida = parseFloat(calificacion.nota);
+                          }
+
+                          if (notaConvertida === null || Number.isNaN(notaConvertida)) {
+                            return acumulado;
+                          }
+
+                          acumulado.push({
+                            nota: notaConvertida,
+                            porcentaje: parseFloat(actividad.porcentaje) || 0
+                          });
+                          return acumulado;
+                        }, []);
                         
-                        const porcentajes = actividadesMomento.map(actividad => parseFloat(actividad.porcentaje) || 0);
-                        const totalPorcentaje = porcentajes.reduce((a, b) => a + b, 0);
+                        const totalPorcentaje = calificacionesValidas.reduce((sum, item) => sum + item.porcentaje, 0);
                         
-                        const promedioNumerico = calificaciones.length > 0
-                          ? calificaciones.reduce((sum, nota, index) => sum + (nota * (porcentajes[index] / totalPorcentaje)), 0)
-                          : null;
+                        let promedioNumerico = null;
+                        if (calificacionesValidas.length > 0) {
+                          if (totalPorcentaje > 0) {
+                            const sumaPonderada = calificacionesValidas.reduce((sum, item) => sum + (item.nota * item.porcentaje), 0);
+                            promedioNumerico = sumaPonderada / totalPorcentaje;
+                          } else {
+                            const sumaSimple = calificacionesValidas.reduce((sum, item) => sum + item.nota, 0);
+                            promedioNumerico = sumaSimple / calificacionesValidas.length;
+                          }
+
+                          if (!Number.isFinite(promedioNumerico)) {
+                            promedioNumerico = null;
+                          }
+                        }
                         
                         const promedioAlfabetico = promedioNumerico !== null
                           ? convertirNotaALetra(promedioNumerico)
