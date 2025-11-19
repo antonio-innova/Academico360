@@ -36,6 +36,21 @@ const YEAR_START_ROWS = [21, 38, 56];
 const YEAR_ROW_COUNTS = [10, 10, 10];
 const ALLOWED_GRADES = new Set(['1', '2', '3']);
 
+const DEFAULT_INSTITUCION_INFO = {
+  codigo: 'P000102120',
+  denominacion: 'UNIDAD EDUCATIVA COLEGIO LAS ACACIAS',
+  direccion: 'AV. BOLÍVAR ENTRE CALLE 25 Y 26. VALERA',
+  telefono: '0271-2310383',
+  municipio: 'VALERA',
+  entidadFederal: 'TRUJILLO',
+  cdcee: 'TRUJILLO'
+};
+
+const DEFAULT_PLANTELES = [
+  { numero: '1', nombre: 'UE Colegio Las Acacias (Sede Principal)', localidad: 'Valera', ef: 'Trujillo' },
+  { numero: '2', nombre: 'UE Colegio Las Acacias (Extensión)', localidad: 'Valera', ef: 'Trujillo' }
+];
+
 const TEMPLATE_PATH = path.join(process.cwd(), 'public', 'Formato32011.xlsx');
 
 export async function POST(request) {
@@ -152,13 +167,15 @@ export async function POST(request) {
       : true;
 
     let computedPlan = [];
+    let notaDoc = null;
+    let estDoc = null;
     if (estudiante?.cedula) {
       console.log('🔍 Buscando datos desde BD para cédula:', estudiante.cedula);
       try {
         await connectDB();
-        const est = await Estudiante.findOne({ idU: estudiante.cedula });
+        estDoc = await Estudiante.findOne({ idU: estudiante.cedula });
 
-        const notaDoc = await NotaCertificada.findOne({ 'estudiante.cedula': estudiante.cedula })
+        notaDoc = await NotaCertificada.findOne({ 'estudiante.cedula': estudiante.cedula })
           .sort({ fechaCreacion: -1 })
           .lean();
 
@@ -179,8 +196,8 @@ export async function POST(request) {
           })).filter(x => x.materias.length > 0);
         }
 
-        if (!computedPlan.length && est) {
-          const aulas = await Aula.find({ 'alumnos._id': est._id }).lean();
+        if (!computedPlan.length && estDoc) {
+          const aulas = await Aula.find({ 'alumnos._id': estDoc._id }).lean();
           const SUBJECT_PRIORITY = [
             'castellano',
             'ingles y otras lenguas extranjeras',
@@ -212,7 +229,7 @@ export async function POST(request) {
               const acts = Array.isArray(asignacion.actividades) ? asignacion.actividades : [];
               let suma = 0, count = 0;
               for (const act of acts) {
-                const cal = (act.calificaciones||[]).find(c => String(c.alumnoId) === String(est._id) || String(c.alumnoId) === String(est._id?._id));
+                const cal = (act.calificaciones||[]).find(c => String(c.alumnoId) === String(estDoc._id) || String(c.alumnoId) === String(estDoc._id?._id));
                 if (cal && typeof cal.nota === 'number') {
                   suma += cal.nota;
                   count++;
@@ -241,17 +258,15 @@ export async function POST(request) {
     const planFiltrado = (planToUse || []).filter(anio => ALLOWED_GRADES.has(String(anio?.grado)));
     console.log('📊 Plan de estudio FINAL a procesar (formato 32011):', JSON.stringify(planFiltrado, null, 2));
 
-    const notaEst = estudiante || {};
-    const formatDate = (d) => {
-      try {
-        if (!d) return '';
-        const dt = new Date(d);
-        if (Number.isNaN(dt.getTime())) return String(d);
-        const dd = String(dt.getDate()).padStart(2, '0');
-        const mm = String(dt.getMonth() + 1).padStart(2, '0');
-        const yyyy = String(dt.getFullYear());
-        return `${dd}/${mm}/${yyyy}`;
-      } catch { return String(d); }
+    const notaEst = {
+      cedula: estudiante.cedula || notaDoc?.estudiante?.cedula || estDoc?.idU || '',
+      nombres: estudiante.nombres || notaDoc?.estudiante?.nombres || estDoc?.nombre || '',
+      apellidos: estudiante.apellidos || notaDoc?.estudiante?.apellidos || estDoc?.apellido || '',
+      fechaNacimiento: estudiante.fechaNacimiento || notaDoc?.estudiante?.fechaNacimiento || estDoc?.fechaNacimiento || '',
+      pais: estudiante.pais || notaDoc?.estudiante?.pais || 'VENEZUELA',
+      estado: estudiante.estado || notaDoc?.estudiante?.estado || estDoc?.estado || estDoc?.ef || '',
+      municipio: estudiante.municipio || notaDoc?.estudiante?.municipio || estDoc?.municipio || '',
+      lugarNacimiento: estudiante.lugarNacimiento || notaDoc?.estudiante?.lugarNacimiento || estDoc?.lugarNacimiento || ''
     };
 
     put(HEADER_CELLS.cedula, notaEst.cedula || '');
@@ -271,8 +286,41 @@ export async function POST(request) {
       ws.getCell(3, 17).value = `${dd}/${mm}/${yyyy}`; // Q3
     } catch {}
 
+    const pickValue = (...values) => {
+      for (const value of values) {
+        if (value === undefined || value === null) continue;
+        const str = typeof value === 'string' ? value.trim() : value;
+        if (str !== '' && str !== null && str !== undefined) return value;
+      }
+      return '';
+    };
+
+    const institucionData = {
+      codigo: pickValue(institucion?.codigo, notaDoc?.institucion?.codigo, DEFAULT_INSTITUCION_INFO.codigo),
+      denominacion: pickValue(institucion?.denominacion, notaDoc?.institucion?.denominacion, DEFAULT_INSTITUCION_INFO.denominacion),
+      direccion: pickValue(institucion?.direccion, notaDoc?.institucion?.direccion, DEFAULT_INSTITUCION_INFO.direccion),
+      telefono: pickValue(institucion?.telefono, notaDoc?.institucion?.telefono, DEFAULT_INSTITUCION_INFO.telefono),
+      municipio: pickValue(institucion?.municipio, notaDoc?.institucion?.municipio, DEFAULT_INSTITUCION_INFO.municipio),
+      entidadFederal: pickValue(institucion?.entidadFederal, notaDoc?.institucion?.entidadFederal, DEFAULT_INSTITUCION_INFO.entidadFederal),
+      cdcee: pickValue(institucion?.cdcee, notaDoc?.institucion?.cdcee, DEFAULT_INSTITUCION_INFO.cdcee)
+    };
+
+    ws.getCell('C6').value = institucionData.codigo || '';
+    ws.getCell('J6').value = institucionData.denominacion || '';
+    ws.getCell('E7').value = institucionData.direccion || '';
+    ws.getCell('Q7').value = institucionData.telefono || '';
+    ws.getCell('C8').value = institucionData.municipio || '';
+    ws.getCell('R8').value = institucionData.entidadFederal || '';
+    ws.getCell('T8').value = institucionData.cdcee || '';
+
     try {
-      const planteles = Array.isArray(institucion.planteles) ? institucion.planteles : [];
+      const plantelesOrigen =
+        (institucion?.planteles && institucion.planteles.length)
+          ? institucion.planteles
+          : (notaDoc?.institucion?.planteles && notaDoc.institucion.planteles.length
+              ? notaDoc.institucion.planteles
+              : DEFAULT_PLANTELES);
+      const planteles = Array.isArray(plantelesOrigen) ? plantelesOrigen : [];
       if (planteles.length) {
         const leftRows = [16, 17];
         const rightRows = [15, 16, 17];

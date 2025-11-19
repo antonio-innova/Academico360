@@ -54,6 +54,63 @@ export async function GET(request) {
       return isNaN(n) ? '' : Math.round(n).toString();
     };
 
+    const convertirLetraANota = (letra = '') => {
+      const map = {
+        A: 19,
+        B: 15.5,
+        C: 12,
+        D: 5.5,
+        E: 3,
+        F: 1
+      };
+      return map[String(letra || '').trim().toUpperCase()] ?? null;
+    };
+
+    const buildPuntosExtraMap = (asignacion, momento) => {
+      const map = {};
+      const key = `momento${momento}`;
+      if (asignacion?.puntosPorMomento && Array.isArray(asignacion.puntosPorMomento[key])) {
+        asignacion.puntosPorMomento[key].forEach((registro) => {
+          const id = registro?.alumnoId;
+          if (!id && id !== 0) return;
+          const keyId = id?.toString ? id.toString() : String(id);
+          map[keyId] = parseFloat(registro.puntos) || 0;
+        });
+      } else if (Array.isArray(asignacion?.puntosExtras)) {
+        asignacion.puntosExtras.forEach((registro) => {
+          const id = registro?.alumnoId;
+          if (!id && id !== 0) return;
+          const keyId = id?.toString ? id.toString() : String(id);
+          map[keyId] = parseFloat(registro.puntos) || 0;
+        });
+      }
+      return map;
+    };
+
+    const obtenerPuntosExtraAlumno = (map, alumno) => {
+      if (!map) return 0;
+      const posibles = [
+        alumno._id && alumno._id.toString(),
+        alumno.id && alumno.id.toString(),
+        alumno.idU && alumno.idU.toString(),
+        alumno.cedula && alumno.cedula.toString()
+      ];
+      for (const key of posibles) {
+        if (key && map[key] !== undefined) {
+          return parseFloat(map[key]) || 0;
+        }
+      }
+      return 0;
+    };
+
+    const redondearPromedio = (valor) => {
+      if (!isFinite(valor)) return 0;
+      const enteroBase = Math.floor(valor);
+      const decimal = valor - enteroBase;
+      if (decimal >= 0.5) return enteroBase + 1;
+      return enteroBase;
+    };
+
     // Calcular EV1..EV8 y NF por materia para el momento seleccionado
     const estudiantesConNF = (aula.alumnos || []).map((alumno, idx) => {
       const estudianteId = alumno._id?.toString() || alumno.id || '';
@@ -108,6 +165,7 @@ export async function GET(request) {
 
         // Si el estudiante NO tiene restricciones O tiene la materia asignada, procesar notas normalmente
         const actividades = Array.isArray(asig.actividades) ? asig.actividades : [];
+        const puntosExtraMap = buildPuntosExtraMap(asig, momento);
         const parseFecha = (f) => {
           if (!f) return 0;
           if (typeof f === 'string' && f.includes('/')) {
@@ -124,7 +182,7 @@ export async function GET(request) {
           .filter(a => parseInt(a.momento) === momento)
           .sort((a, b) => parseFecha(a.fecha) - parseFecha(b.fecha));
 
-        const notasNumericas = [];
+        const registrosPromedio = [];
         const ev = ['', '', '', '', '', '', '', ''];
         let evIndex = 0;
 
@@ -152,15 +210,23 @@ export async function GET(request) {
 
         for (const act of actsMomento) {
           const cal = (act.calificaciones || []).find(c => (c.alumnoId?.toString?.() || String(c.alumnoId)) === estudianteId);
+          const porcentaje = parseFloat(act.porcentaje) || 0;
           let literal = '';
           let valorNumerico = null;
 
           if (cal) {
             literal = parseLiteralNota(cal);
             if (!literal) {
-              const valor = cal.nota !== undefined && cal.nota !== null ? parseFloat(cal.nota) : NaN;
-              if (!isNaN(valor)) {
-                valorNumerico = valor;
+              if (cal.tipoCalificacion === 'alfabetica' && cal.notaAlfabetica) {
+                const convertido = convertirLetraANota(cal.notaAlfabetica);
+                if (convertido !== null && !Number.isNaN(convertido)) {
+                  valorNumerico = convertido;
+                }
+              } else if (cal.nota !== undefined && cal.nota !== null) {
+                const valor = parseFloat(cal.nota);
+                if (!isNaN(valor)) {
+                  valorNumerico = valor;
+                }
               }
             }
           }
@@ -168,14 +234,14 @@ export async function GET(request) {
           if (literal) {
             const valorLiteral = literalToNumeric[literal] !== undefined ? literalToNumeric[literal] : null;
             if (valorLiteral !== null) {
-              notasNumericas.push(valorLiteral);
+              registrosPromedio.push({ valor: valorLiteral, porcentaje });
             }
             if (evIndex < 8) {
               ev[evIndex] = literal;
               evIndex++;
             }
           } else if (valorNumerico !== null) {
-            notasNumericas.push(valorNumerico);
+            registrosPromedio.push({ valor: valorNumerico, porcentaje });
             if (evIndex < 8) {
               ev[evIndex] = entero(valorNumerico);
               evIndex++;
@@ -188,13 +254,29 @@ export async function GET(request) {
           }
         }
 
-        if (notasNumericas.length === 0) {
+        if (registrosPromedio.length === 0) {
           detallePorMateria[nombreMateria] = { ev, nf: '' };
         } else if (esNoCuantitativa(nombreMateria)) {
-          detallePorMateria[nombreMateria] = { ev, nf: entero(notasNumericas[notasNumericas.length - 1]) };
+          const ultimo = registrosPromedio[registrosPromedio.length - 1]?.valor;
+          const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
+          const promedioConPuntos = Math.min(20, Math.max(0, ultimo + puntosExtraAlumno));
+          detallePorMateria[nombreMateria] = { ev, nf: entero(promedioConPuntos) };
         } else {
-          const suma = notasNumericas.reduce((a,b) => a + (isNaN(b) ? 0 : b), 0);
-          detallePorMateria[nombreMateria] = { ev, nf: entero(suma / notasNumericas.length) };
+          const totalPorcentaje = registrosPromedio.reduce((sum, item) => sum + (item.porcentaje > 0 ? item.porcentaje : 0), 0);
+          let promedioBase;
+          if (totalPorcentaje > 0) {
+            promedioBase = registrosPromedio.reduce((sum, item) => {
+              const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
+              return sum + (item.valor * (porcentaje / totalPorcentaje));
+            }, 0);
+          } else {
+            const suma = registrosPromedio.reduce((sum, item) => sum + item.valor, 0);
+            promedioBase = suma / registrosPromedio.length;
+          }
+          const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
+          const promedioConPuntos = Math.min(20, Math.max(0, promedioBase + puntosExtraAlumno));
+          const nfFinal = Math.min(20, Math.max(0, redondearPromedio(promedioConPuntos)));
+          detallePorMateria[nombreMateria] = { ev, nf: nfFinal.toString() };
         }
       }
 
