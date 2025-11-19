@@ -46,6 +46,48 @@ const CERTIFICADO_EVALUACION_LABELS = {
   'materia-pendiente': 'Materia Pendiente'
 };
 
+const FORMATO_EXCEL_OPTIONS = [
+  {
+    value: '1-3',
+    label: '1-3 año (Formato Original)',
+    description: 'Usa la plantilla notascertificadas.xlsx (hasta 3er año) y llena los datos automáticamente.',
+    buttonLabel: 'Generar Excel (1-3 año)',
+    type: 'endpoint',
+    endpoint: '/api/notascertificadas/excel'
+  },
+  {
+    value: '1-5',
+    label: '1-5 año (Formato Quinto)',
+    description: 'Usa la plantilla formatoquinto.xlsx (hasta 5to año) con generación automática.',
+    buttonLabel: 'Generar Excel (1-5 año)',
+    type: 'endpoint',
+    endpoint: '/api/notascertificadas/excel-quinto'
+  },
+  {
+    value: 'formato31018',
+    label: 'Formato 31018 (Plantilla oficial 4°-5°)',
+    description: 'Llena automáticamente la planilla oficial 31018 con los datos capturados para 4° y 5° año.',
+    buttonLabel: 'Generar Formato 31018',
+    type: 'endpoint',
+    endpoint: '/api/notascertificadas/excel-31018'
+  },
+  {
+    value: 'formato32011',
+    label: 'Formato 32011 (Plantilla oficial 1°-3°)',
+    description: 'Llena automáticamente la planilla oficial 32011 utilizada para 1° a 3° año.',
+    buttonLabel: 'Generar Formato 32011',
+    type: 'endpoint',
+    endpoint: '/api/notascertificadas/excel-32011'
+  }
+];
+
+const FORMATO_EXCEL_CONFIG = FORMATO_EXCEL_OPTIONS.reduce((acc, option) => {
+  acc[option.value] = option;
+  return acc;
+}, {});
+
+const FORMATO_EXCEL_DEFAULT = '1-3';
+
 const createEmptyCertificadoForm = () => ({
   tipoEvaluacion: '',
   momento: 'octubre',
@@ -124,6 +166,120 @@ export default function SidebarPage() {
       { id: 'CRP-5', nombre: 'Grupo y Participación', codigo: 'CRP-5', letras: 'GRUPO' }
     ]
   };
+
+  const PLAN_31018_MATERIAS = {
+    '4': [
+      'CASTELLANO Y LITERATURA',
+      'MATEMATICA',
+      'HISTORIA DE VENEZUELA',
+      'INGLES',
+      'EDUCACIÓN FISICA Y DEPORTE',
+      'FISICA',
+      'QUIMICA',
+      'CIENCIAS BIOLOGICAS',
+      'DIBUJO',
+      'FILOSOFIA',
+      'INSTRUCCIÓN PRE-MILITAR'
+    ],
+    '5': [
+      'INGLES',
+      'EDUCACIÓN FISICA Y DEPORTE',
+      'GEOGRAFIA DE VENEZUELA',
+      'CASTELLANO Y LITERATURA',
+      'MATEMATICA',
+      'FISICA',
+      'QUIMICA',
+      'CIENCIAS BIOLOGICAS',
+      'CIENCIAS DE LA TIERRA',
+      'INSTRUCCIÓN PRE-MILITAR'
+    ]
+  };
+
+  const PLAN_32011_MATERIAS = {
+    '1': [
+      'CASTELLANO Y LITERATURA',
+      'INGLES',
+      'MATEMATICA',
+      'ESTUDIOS DE LA NATURALEZA',
+      'HISTORIA DE VENEZUELA',
+      'EDUC. FAMILIAR Y CIUDADANA',
+      'GEOGRAFIA GENERAL',
+      'EDUCACIÓN ARTISTICA',
+      'EDUCACIÓN FISICA Y DEPORTE',
+      'EDUCACION PARA EL TRABAJO'
+    ],
+    '2': [
+      'CASTELLANO Y LITERATURA',
+      'INGLES',
+      'MATEMATICA',
+      'EDUCACION PARA LA SALUD',
+      'CIENCIAS BIOLOGICAS',
+      'HISTORIA DE VENEZUELA',
+      'HISTORIA UNIVERSAL',
+      'EDUCACIÓN ARTISTICA',
+      'EDUCACIÓN FISICA Y DEPORTE',
+      'EDUCACION PARA EL TRABAJO'
+    ],
+    '3': [
+      'CASTELLANO Y LITERATURA',
+      'INGLES',
+      'MATEMATICA',
+      'CIENCIAS BIOLOGICAS',
+      'FISICA',
+      'QUIMICA',
+      'HIST. VZLA (CAT. BOLIVARIANA)',
+      'GEOGRAFIA DE VENEZUELA',
+      'EDUCACIÓN FISICA Y DEPORTE',
+      'EDUCACION PARA EL TRABAJO'
+    ]
+  };
+
+  const planEstudioConfig = {
+    '31059': {
+      label: 'Plan 31059 - Educación Media (1° a 5°)',
+      grados: ['1', '2', '3', '4', '5'],
+      getMaterias: (grado) => (materiasPorAnio[`${grado} año`] || []).map((m) => m.nombre)
+    },
+    '31018': {
+      label: 'Plan 31018 - Formato Oficial (4° y 5°)',
+      grados: ['4', '5'],
+      getMaterias: (grado) => PLAN_31018_MATERIAS[grado] || []
+    },
+    '32011': {
+      label: 'Plan 32011 - Formato Oficial (1° a 3°)',
+      grados: ['1', '2', '3'],
+      getMaterias: (grado) => PLAN_32011_MATERIAS[grado] || []
+    }
+  };
+
+  const defaultPlanCodigo = '31059';
+
+  const buildMateriasState = (planCodigo, grado) => {
+    const materiasBase = planEstudioConfig[planCodigo]?.getMaterias(grado) || [];
+    return materiasBase.map((nombre) => ({
+      nombre: nombre?.trim() || '',
+      numero: '',
+      letras: '',
+      te: 'F',
+      fechaMes: '',
+      fechaAnio: '',
+      plantelNumero: ''
+    }));
+  };
+
+  const buildNotaPlanDefault = (planCodigo) => {
+    const gradosDisponibles = planEstudioConfig[planCodigo]?.grados || ['1'];
+    const gradoInicial = gradosDisponibles[0] || '1';
+    return [{
+      grado: gradoInicial,
+      materias: buildMateriasState(planCodigo, gradoInicial)
+    }];
+  };
+
+  const planEstudioOptions = Object.entries(planEstudioConfig).map(([value, config]) => ({
+    value,
+    label: config.label
+  }));
 
   // Estados para manejar los datos y la interfaz
   const [activeTab, setActiveTab] = useState('aulas'); // Iniciar con aulas como pestaña activa
@@ -1182,7 +1338,7 @@ export default function SidebarPage() {
   // Estado Notas Certificadas
   const getMateriasByGrado = (grado) => (materiasPorAnio[`${grado} año`] || []);
   const [notesSubTab, setNotesSubTab] = useState('agregar');
-  const [notaTipoFormato, setNotaTipoFormato] = useState('1-3'); // '1-3' o '1-5'
+  const [notaTipoFormato, setNotaTipoFormato] = useState(FORMATO_EXCEL_DEFAULT);
 
   const [certificadoEvaluacionTab, setCertificadoEvaluacionTab] = useState('agregar');
   const [certificadoFormState, setCertificadoFormState] = useState(() => ({
@@ -1231,7 +1387,8 @@ export default function SidebarPage() {
     : 'Sin selección';
   const [notaInstitucion, setNotaInstitucion] = useState({ entidadFederal: '', cdcee: '', codigo: '', planteles: [] });
   const [notaEst, setNotaEst] = useState({ cedula: '', nombres: '', apellidos: '', fechaNacimiento: '', pais: 'VENEZUELA', estado: '', municipio: '' });
-  const [notaPlan, setNotaPlan] = useState([{ grado: '1', materias: getMateriasByGrado('1').map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' })) }]);
+  const [notaPlanCodigo, setNotaPlanCodigo] = useState(defaultPlanCodigo);
+  const [notaPlan, setNotaPlan] = useState(() => buildNotaPlanDefault(defaultPlanCodigo));
   const [savingNotas, setSavingNotas] = useState(false);
   const [previewNotasVisible, setPreviewNotasVisible] = useState(false);
   const [previewNotasHtml, setPreviewNotasHtml] = useState('');
@@ -1246,7 +1403,22 @@ export default function SidebarPage() {
   const [aulaSeleccionadaData, setAulaSeleccionadaData] = useState(null); // Datos completos del aula seleccionada
   const [materiasInscripcionSeleccionadas, setMateriasInscripcionSeleccionadas] = useState([]); // Materias seleccionadas para inscripción
 
-  const addAnio = () => setNotaPlan(prev => [...prev, { grado: '1', materias: getMateriasByGrado('1').map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' })) }]);
+  const handleNotaPlanCodigoChange = (codigo) => {
+    setNotaPlanCodigo(codigo);
+    setNotaPlan(buildNotaPlanDefault(codigo));
+  };
+
+  const addAnio = () => setNotaPlan(prev => {
+    const gradosDisponibles = planEstudioConfig[notaPlanCodigo]?.grados || ['1'];
+    const gradoSugerido = gradosDisponibles.find((grado) => !prev.some((anio) => anio.grado === grado)) || gradosDisponibles[0] || '1';
+    return [
+      ...prev,
+      {
+        grado: gradoSugerido,
+        materias: buildMateriasState(notaPlanCodigo, gradoSugerido)
+      }
+    ];
+  });
 
   // Función de prueba para agregar planteles automáticamente
   const agregarPlantelesPrueba = () => {
@@ -1262,7 +1434,7 @@ export default function SidebarPage() {
   };
   const updatePlanGrado = (idx, grado) => setNotaPlan(prev => prev.map((a,i)=> {
     if (i!==idx) return a;
-    const materiasAuto = getMateriasByGrado(grado).map(m=>({ nombre: m.nombre, numero:'', letras:'', te:'F', fechaMes:'', fechaAnio:'', plantelNumero:'' }));
+    const materiasAuto = buildMateriasState(notaPlanCodigo, grado);
     return { ...a, grado, materias: materiasAuto };
   }));
   const numToLetras = (valor) => {
@@ -1338,6 +1510,25 @@ export default function SidebarPage() {
     }
   };
 
+  const mostrarPreviewExcel = async (blob, fileName) => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const workbook = XLSX.read(arrayBuffer, { type: 'array' });
+    const sheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[sheetName];
+
+    const html = XLSX.utils.sheet_to_html(worksheet, { 
+      header: '<style>table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #4472C4; color: white; }</style>', 
+      footer: '' 
+    });
+
+    setPreviewNotasBlob(blob);
+    setPreviewNotasHtml(html);
+    setPreviewNotasFileName(fileName);
+    setPreviewNotasVisible(true);
+    setNotification({ type: 'info', message: 'Previsualiza el Excel antes de descargarlo.' });
+    setTimeout(()=> setNotification(null), 3000);
+  };
+
   const handleGenerarExcelNotas = async (options = {}) => {
     try {
       const {
@@ -1349,26 +1540,40 @@ export default function SidebarPage() {
         materiaPendienteMomento
       } = options;
 
+      const formatoInfo = FORMATO_EXCEL_CONFIG[tipoFormato] || FORMATO_EXCEL_CONFIG[FORMATO_EXCEL_DEFAULT];
+      if (!formatoInfo) {
+        throw new Error('Formato no soportado. Verifique la selección.');
+      }
+
       const includeEvaluacion = Object.prototype.hasOwnProperty.call(options, 'tipoEvaluacion');
       const resumenEvaluacion = includeEvaluacion ? tipoEvaluacion || 'no seleccionado' : 'no aplicado';
 
-      console.log('Generando Excel con datos:', { 
-        institucion, 
-        estudiante, 
-        planEstudio, 
-        tipoFormato,
+      console.groupCollapsed(`[NotasCertificadas] Datos capturados para ${formatoInfo.label}`);
+      console.log('📄 Estudiante:', estudiante);
+      console.log('🏫 Institución:', institucion);
+      console.log('🗂️ Plan de estudio (por grado):', planEstudio);
+      console.log('📁 Tipo de formato seleccionado:', tipoFormato, '→', formatoInfo);
+      console.log('📝 Información de evaluación:', {
         tipoEvaluacion: resumenEvaluacion,
         materiaPendienteMomento: includeEvaluacion ? materiaPendienteMomento || null : undefined
       });
+      console.groupEnd();
 
       if (includeEvaluacion && !tipoEvaluacion) {
         throw new Error('Selecciona el tipo de evaluación antes de generar el certificado.');
       }
 
-      // Seleccionar la ruta según el tipo de formato
-      const endpoint = tipoFormato === '1-5' 
-        ? '/api/notascertificadas/excel-quinto' 
-        : '/api/notascertificadas/excel';
+      if (formatoInfo.type === 'static') {
+        console.info(`[NotasCertificadas] Descargando plantilla estática (${formatoInfo.label}) con los datos capturados arriba. Se cargará desde: ${formatoInfo.staticPath}`);
+        const respuesta = await fetch(formatoInfo.staticPath);
+        if (!respuesta.ok) throw new Error('No se pudo cargar la plantilla seleccionada.');
+        const blob = await respuesta.blob();
+        await mostrarPreviewExcel(blob, formatoInfo.downloadName || 'formato_oficial.xlsx');
+        return;
+      }
+
+      const endpoint = formatoInfo.endpoint || '/api/notascertificadas/excel';
+      console.info(`[NotasCertificadas] Generando Excel mediante API: ${endpoint}`);
 
       const payload = {
         estudiante,
@@ -1390,31 +1595,13 @@ export default function SidebarPage() {
       });
       if (!res.ok) throw new Error('No se pudo generar el Excel');
       const blob = await res.blob();
-      const arrayBuffer = await blob.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer, { type: 'array' });
-      const sheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[sheetName];
-      
-      // Generar HTML con estilos mejorados para mejor visualización
-      const html = XLSX.utils.sheet_to_html(worksheet, { 
-        header: '<style>table { border-collapse: collapse; width: 100%; } td, th { border: 1px solid #ddd; padding: 8px; text-align: left; } th { background-color: #4472C4; color: white; }</style>', 
-        footer: '' 
-      });
 
       const contentDisposition = res.headers.get('Content-Disposition');
       const fileName = contentDisposition 
         ? contentDisposition.split('filename=')[1]?.replace(/"/g, '')
         : `nota_certificada_${tipoFormato}_${estudiante.cedula || 'estudiante'}.xlsx`;
 
-      // Crear URL del blob para vista previa
-      const blobUrl = window.URL.createObjectURL(blob);
-
-      setPreviewNotasBlob(blob);
-      setPreviewNotasHtml(html);
-      setPreviewNotasFileName(fileName);
-      setPreviewNotasVisible(true);
-      setNotification({ type: 'info', message: 'Previsualiza el Excel antes de descargarlo.' });
-      setTimeout(()=> setNotification(null), 3000);
+      await mostrarPreviewExcel(blob, fileName);
     } catch (err) {
       setNotification({ type: 'error', message: err.message });
       setTimeout(()=> setNotification(null), 3000);
@@ -9180,16 +9367,43 @@ export default function SidebarPage() {
                   <fieldset className="border rounded p-4">
                     <legend className="px-2 text-sm font-semibold">Plan de Estudio</legend>
                     <div className="space-y-4">
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <label className="block text-sm font-semibold text-gray-700 mb-1">Plan oficial (formato)</label>
+                          <select
+                            className="border rounded p-2 w-full"
+                            value={notaPlanCodigo}
+                            onChange={(e) => handleNotaPlanCodigoChange(e.target.value)}
+                          >
+                            {planEstudioOptions.map((option) => (
+                              <option key={option.value} value={option.value}>
+                                {option.label}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                        <div className="text-xs text-gray-600 bg-gray-50 border border-dashed border-gray-200 rounded p-3 leading-relaxed">
+                          Selecciona el plan según el formato ministerial que vas a usar.
+                          El plan 31059 mantiene la configuración estándar (1° a 5°),
+                          mientras que 31018 (4°-5°) y 32011 (1°-3°) limitan los grados
+                          y materias para que coincidan con las plantillas oficiales Excel.
+                        </div>
+                      </div>
                       {notaPlan.map((anio, idx)=> (
                         <div key={idx} className="border rounded p-3">
                           <div className="flex items-center gap-3 mb-2">
                             <label className="text-sm">Grado</label>
-                            <select id={`select-grado-nota-${idx}`} className="border rounded p-2" value={anio.grado} onChange={(e)=>updatePlanGrado(idx, e.target.value)}>
-                              <option value="1">1</option>
-                              <option value="2">2</option>
-                              <option value="3">3</option>
-                              <option value="4">4</option>
-                              <option value="5">5</option>
+                            <select
+                              id={`select-grado-nota-${idx}`}
+                              className="border rounded p-2"
+                              value={anio.grado}
+                              onChange={(e)=>updatePlanGrado(idx, e.target.value)}
+                            >
+                              {(planEstudioConfig[notaPlanCodigo]?.grados || ['1','2','3','4','5']).map((grado) => (
+                                <option key={`${notaPlanCodigo}-${grado}`} value={grado}>
+                                  {grado}
+                                </option>
+                              ))}
                             </select>
                             {/* Materias se autogeneran según el grado seleccionado */}
                             <button
@@ -9268,13 +9482,14 @@ export default function SidebarPage() {
                         value={notaTipoFormato}
                         onChange={(e) => setNotaTipoFormato(e.target.value)}
                       >
-                        <option value="1-3">1-3 año (Formato Original)</option>
-                        <option value="1-5">1-5 año (Formato Quinto)</option>
+                        {FORMATO_EXCEL_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
                       </select>
                       <p className="text-xs text-gray-500 mt-1">
-                        {notaTipoFormato === '1-3'
-                          ? 'Usa la plantilla notascertificadas.xlsx (hasta 3er año)'
-                          : 'Usa la plantilla formatoquinto.xlsx (hasta 5to año)'}
+                        {(FORMATO_EXCEL_CONFIG[notaTipoFormato] || FORMATO_EXCEL_CONFIG[FORMATO_EXCEL_DEFAULT])?.description}
                       </p>
                     </div>
                   </div>
@@ -9308,7 +9523,7 @@ export default function SidebarPage() {
                     className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 transition-colors"
                     onClick={() => handleGenerarExcelNotas()}
                   >
-                    Generar {notaTipoFormato === '1-5' ? 'Excel (1-5 año)' : 'Excel (1-3 año)'}
+                    {(FORMATO_EXCEL_CONFIG[notaTipoFormato] || FORMATO_EXCEL_CONFIG[FORMATO_EXCEL_DEFAULT])?.buttonLabel || 'Generar Excel'}
                   </button>
                 </div>
               )}

@@ -124,15 +124,60 @@ export async function GET(request) {
           .filter(a => parseInt(a.momento) === momento)
           .sort((a, b) => parseFecha(a.fecha) - parseFecha(b.fecha));
 
-        const notas = [];
+        const notasNumericas = [];
         const ev = ['', '', '', '', '', '', '', ''];
         let evIndex = 0;
+
+        const parseLiteralNota = (calificacion) => {
+          if (!calificacion) return '';
+          const candidatos = [
+            calificacion.nota,
+            calificacion.notaAlfabetica,
+            calificacion.tipoCalificacion
+          ];
+          for (const valor of candidatos) {
+            if (valor === undefined || valor === null) continue;
+            if (typeof valor === 'string') {
+              const up = valor.trim().toUpperCase();
+              if (up === 'NP' || up === 'I') return up;
+            }
+          }
+          return '';
+        };
+
+        const literalToNumeric = {
+          NP: 1,
+          I: 1
+        };
+
         for (const act of actsMomento) {
           const cal = (act.calificaciones || []).find(c => (c.alumnoId?.toString?.() || String(c.alumnoId)) === estudianteId);
-          if (cal && cal.nota !== undefined && cal.nota !== null) {
-            notas.push(parseFloat(cal.nota));
+          let literal = '';
+          let valorNumerico = null;
+
+          if (cal) {
+            literal = parseLiteralNota(cal);
+            if (!literal) {
+              const valor = cal.nota !== undefined && cal.nota !== null ? parseFloat(cal.nota) : NaN;
+              if (!isNaN(valor)) {
+                valorNumerico = valor;
+              }
+            }
+          }
+
+          if (literal) {
+            const valorLiteral = literalToNumeric[literal] !== undefined ? literalToNumeric[literal] : null;
+            if (valorLiteral !== null) {
+              notasNumericas.push(valorLiteral);
+            }
             if (evIndex < 8) {
-              ev[evIndex] = entero(cal.nota);
+              ev[evIndex] = literal;
+              evIndex++;
+            }
+          } else if (valorNumerico !== null) {
+            notasNumericas.push(valorNumerico);
+            if (evIndex < 8) {
+              ev[evIndex] = entero(valorNumerico);
               evIndex++;
             }
           } else {
@@ -143,13 +188,13 @@ export async function GET(request) {
           }
         }
 
-        if (notas.length === 0) {
+        if (notasNumericas.length === 0) {
           detallePorMateria[nombreMateria] = { ev, nf: '' };
         } else if (esNoCuantitativa(nombreMateria)) {
-          detallePorMateria[nombreMateria] = { ev, nf: entero(notas[notas.length - 1]) };
+          detallePorMateria[nombreMateria] = { ev, nf: entero(notasNumericas[notasNumericas.length - 1]) };
         } else {
-          const suma = notas.reduce((a,b) => a + (isNaN(b) ? 0 : b), 0);
-          detallePorMateria[nombreMateria] = { ev, nf: entero(suma / notas.length) };
+          const suma = notasNumericas.reduce((a,b) => a + (isNaN(b) ? 0 : b), 0);
+          detallePorMateria[nombreMateria] = { ev, nf: entero(suma / notasNumericas.length) };
         }
       }
 

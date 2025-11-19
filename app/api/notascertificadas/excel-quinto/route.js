@@ -7,6 +7,25 @@ import Aula from '@/database/models/Aula';
 import Estudiante from '@/database/models/Estudiante';
 import NotaCertificada from '@/database/models/NotaCertificada';
 
+const debugLogNotasPayload = (context, data) => {
+  try {
+    console.group(`[NotasCertificadas][${context}]`);
+    console.log('📌 Payload completo recibido:', JSON.stringify(data, null, 2));
+    console.log('🏫 Institución:', JSON.stringify(data?.institucion || {}, null, 2));
+    console.log('🧑‍🎓 Estudiante:', JSON.stringify(data?.estudiante || {}, null, 2));
+    if (Array.isArray(data?.planEstudio)) {
+      data.planEstudio.forEach((anio, idx) => {
+        console.log(`📚 Año #${idx + 1} (grado ${anio?.grado}):`, JSON.stringify(anio?.materias || [], null, 2));
+      });
+    } else {
+      console.log('📚 planEstudio no es un arreglo válido:', data?.planEstudio);
+    }
+    console.groupEnd();
+  } catch (error) {
+    console.warn('[NotasCertificadas] Error al imprimir payload:', error);
+  }
+};
+
 // Genera un Excel rellenando la plantilla ubicada en public/formatoquinto.xlsx (1-5 año)
 export async function POST(request) {
   try {
@@ -18,12 +37,7 @@ export async function POST(request) {
       metadata = {}
     } = body || {};
 
-    console.log('=== DATOS RECIBIDOS EN EXCEL API (1-5 año) ===');
-    console.log('estudiante:', estudiante);
-    console.log('institucion:', institucion);
-    console.log('planEstudio (RAW):', JSON.stringify(planEstudio, null, 2));
-    console.log('metadata:', metadata);
-    console.log('=== FIN DATOS RECIBIDOS ===');
+    debugLogNotasPayload('Excel 1-5 años', body);
 
     // Si no hay planteles en los datos recibidos, intentar obtenerlos desde la BD
     if ((!institucion.planteles || institucion.planteles.length === 0) && estudiante?.cedula) {
