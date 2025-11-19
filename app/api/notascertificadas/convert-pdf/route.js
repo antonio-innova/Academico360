@@ -41,12 +41,12 @@ export async function POST(request) {
     const file = new ILovePDFFile(tempInputPath);
     await task.addFile(file);
 
-    // Configurar opciones de conversión para optimizar el PDF
-    // Estas opciones aseguran que se respete la configuración de página del Excel
+    // Configurar opciones de conversión para que todo quepa en una sola página vertical
+    // Respetar la configuración de página del Excel (vertical, ajustado a 1 página, sin espacios)
     await task.process({
       landscape: false, // Orientación VERTICAL (portrait)
-      page_margin: 0,   // Sin márgenes adicionales
-      zoom: 100         // Sin zoom adicional
+      page_margin: 0,    // Sin márgenes adicionales para eliminar espacios en blanco
+      zoom: 100          // Sin zoom adicional (el Excel ya tiene escala configurada)
     });
 
     // Descargar el resultado (task.download() devuelve un buffer directamente)

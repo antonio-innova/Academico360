@@ -377,6 +377,25 @@ export async function POST(request) {
       });
     });
 
+    // Configurar página para que todo quepa en una sola hoja vertical sin espacios en blanco
+    ws.pageSetup = {
+      paperSize: 9, // A4
+      orientation: 'portrait', // Vertical
+      fitToPage: true,
+      fitToWidth: 1, // Ajustar a 1 página de ancho
+      fitToHeight: 1, // Ajustar a 1 página de alto
+      scale: 75, // Escala para que quepa todo sin espacios excesivos
+      horizontalCentered: true, // Centrar el contenido
+      margins: {
+        left: 0.05,
+        right: 0.05,
+        top: 0.05,
+        bottom: 0.05,
+        header: 0,
+        footer: 0
+      }
+    };
+
     const buffer = await workbook.xlsx.writeBuffer();
 
     return new NextResponse(buffer, {

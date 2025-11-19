@@ -293,20 +293,23 @@ export async function GET(request) {
     estudiantesConNF.forEach((e, i) => { e.orden = i + 1; });
 
     // Construcción de hoja: N°, Nombre, Cédula + por materia: EV1..EV8, NF
-    const headers = ['N°', 'Nombre', 'Cédula'];
-    const subHeaders = [];
-    materiasOrdenadas.forEach(() => {
-      subHeaders.push('EV1','EV2','EV3','EV4','EV5','EV6','EV7','EV8','NF');
+    // Encabezado principal: N°, Nombre, (columna separadora), Cédula, luego materias
+    const headerMaterias = ['N°', 'Nombre', '', 'Cédula'];
+    materiasOrdenadas.forEach(mat => {
+      headerMaterias.push(mat); // Nombre de materia en la primera columna de cada grupo
+      for (let i = 0; i < 8; i++) headerMaterias.push(''); // Espacios para EV2-EV8
     });
 
-    // Encabezado principal por materia (solo en EV1, las demás columnas vacías)
-    const headerMaterias = ['N°', 'Nombre', 'Cédula'];
-    materiasOrdenadas.forEach(mat => headerMaterias.push(mat, '', '', '', '', '', '', '', ''));
+    // Subencabezados: vacíos para N°, Nombre, separador, Cédula, luego EV1-EV8, NF por materia
+    const subHeaderRow = ['', '', '', '']; // N°, Nombre, separador, Cédula
+    materiasOrdenadas.forEach(() => {
+      subHeaderRow.push('EV1','EV2','EV3','EV4','EV5','EV6','EV7','EV8','NF');
+    });
 
-    const data = [headerMaterias, headers.concat(materiasOrdenadas.flatMap(() => subHeaders))];
+    const data = [headerMaterias, subHeaderRow];
 
     estudiantesConNF.forEach(est => {
-      const row = [est.orden, est.nombreCompleto, est.cedula];
+      const row = [est.orden, est.nombreCompleto, '', est.cedula];
       materiasOrdenadas.forEach(mat => {
         const det = est.detallePorMateria[mat] || { ev: ['', '', '', '', '', '', '', ''], nf: '' };
         row.push(...det.ev, det.nf);
@@ -317,10 +320,34 @@ export async function GET(request) {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(data);
 
-    // Anchos: N°, Nombre amplio, Cédula medio, resto estrechos
-    const cols = [{ wch: 4 }, { wch: 30 }, { wch: 12 }];
-    materiasOrdenadas.forEach(() => cols.push({ wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }, { wch: 5 }));
+    // Anchos optimizados para que todo quepa en una sola página: N°, Nombre, separador, Cédula, resto estrechos
+    const cols = [{ wch: 4 }, { wch: 30 }, { wch: 2 }, { wch: 12 }];
+    materiasOrdenadas.forEach(() => cols.push({ wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }));
     ws['!cols'] = cols;
+
+    // Configuración de página para una sola hoja sin cortar (horizontal)
+    ws['!pageSetup'] = {
+      paperSize: 9, // A4
+      orientation: 'landscape', // Horizontal
+      fitToWidth: 1, // Ajustar a 1 página de ancho
+      fitToHeight: 1, // Ajustar a 1 página de alto
+      scale: 60, // Escala reducida para que quepa todo
+      margins: {
+        left: 0.2,
+        right: 0.2,
+        top: 0.2,
+        bottom: 0.2,
+        header: 0.1,
+        footer: 0.1
+      }
+    };
+
+    // Configurar vista para mostrar todo sin dividir
+    ws['!sheetView'] = [{
+      zoomScale: 60, // Zoom reducido para ver más contenido
+      showGridLines: true,
+      view: 'pageBreakPreview' // Vista de saltos de página
+    }];
 
     // Nombre de hoja
     const nombreAula = `${aula.anio || ''}${aula.seccion || ''}`.trim() || 'Aula';

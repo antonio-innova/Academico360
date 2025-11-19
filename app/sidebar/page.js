@@ -1354,11 +1354,12 @@ export default function SidebarPage() {
   );
 
   const updateCertificadoForm = useCallback((tab, updates) => {
+    console.log('updateCertificadoForm llamado:', { tab, updates });
     setCertificadoFormState((prev) => {
       const prevTabState = prev[tab] || createEmptyCertificadoForm();
       const { estudiante: estudianteUpdates, ...rest } = updates;
 
-      return {
+      const newState = {
         ...prev,
         [tab]: {
           ...prevTabState,
@@ -1368,6 +1369,9 @@ export default function SidebarPage() {
             : prevTabState.estudiante
         }
       };
+      
+      console.log('Nuevo estado del certificado:', newState);
+      return newState;
     });
   }, []);
 
@@ -1716,6 +1720,7 @@ export default function SidebarPage() {
     onSubmit
   }) => {
     const { tipoEvaluacion, momento, formato, estudiante } = formState;
+    console.log('Renderizando formulario - Estado actual:', { tabKey, tipoEvaluacion, momento, formato });
     const hasTipoSeleccionado = Boolean(tipoEvaluacion);
     const momentVisible = tipoEvaluacion === 'materia-pendiente';
     const labelEvaluacion = evaluacionLabelMapGlobal[tipoEvaluacion] || 'Selecciona un tipo';
@@ -1729,6 +1734,7 @@ export default function SidebarPage() {
     };
 
     const handleTipoEvaluacionChange = (value) => {
+      console.log('Tipo de evaluación seleccionado:', value);
       updateCertificadoForm(tabKey, {
         tipoEvaluacion: value,
         momento: value === 'materia-pendiente' ? momento || 'octubre' : 'octubre'
@@ -9563,7 +9569,7 @@ export default function SidebarPage() {
           </div>
 
           {certificadoEvaluacionTab === 'agregar' && renderCertificadoEvaluacionForm({
-            tabKey: 'certificado-agregar',
+            tabKey: 'agregar',
             formState: certificadoAgregarForm,
             showHelper: true,
             submitLabel: certificadoAgregarForm.tipoEvaluacion
@@ -9573,7 +9579,7 @@ export default function SidebarPage() {
           })}
 
           {certificadoEvaluacionTab === 'generar' && renderCertificadoEvaluacionForm({
-            tabKey: 'certificado-generar',
+            tabKey: 'generar',
             formState: certificadoGenerarForm,
             showHelper: true,
             submitLabel: certificadoGenerarForm.tipoEvaluacion
