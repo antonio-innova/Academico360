@@ -10438,21 +10438,53 @@ export default function SidebarPage() {
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                     {aulas.filter(aula => 
                       aula.asignaciones?.some(asignacion => {
-                        const formatName = (name) => {
-                          if (!name) return '';
-                          // Dividir el nombre en palabras
-                          const words = name.toUpperCase().split(' ');
-                          // Si son 4 palabras, eliminar la segunda y la cuarta
-                          if (words.length === 4) {
-                            return `${words[0]} ${words[2]}`;
+                        // Primero intentar comparar por ID si está disponible
+                        if (asignacion.profesorId && userData?.id) {
+                          const asignacionProfesorId = asignacion.profesorId.toString();
+                          const userProfesorId = userData.id.toString();
+                          if (asignacionProfesorId === userProfesorId) {
+                            return true;
                           }
-                          return name.toUpperCase();
+                        }
+                        
+                        // Si no hay match por ID, comparar por nombre
+                        const normalizeName = (name) => {
+                          if (!name) return '';
+                          // Normalizar: eliminar espacios extra, convertir a mayúsculas, eliminar acentos
+                          return name
+                            .trim()
+                            .toUpperCase()
+                            .normalize('NFD')
+                            .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+                            .replace(/\s+/g, ' '); // Normalizar espacios
                         };
 
-                        const profesorFullName = `${asignacion.profesor?.nombre || ''} ${asignacion.profesor?.apellido || ''}`;
-                        const userFullName = `${userData?.nombre || ''} ${userData?.apellido || ''}`;
+                        const profesorFullName = `${asignacion.profesor?.nombre || ''} ${asignacion.profesor?.apellido || ''}`.trim();
+                        const userFullName = `${userData?.nombre || ''} ${userData?.apellido || ''}`.trim();
 
-                        return formatName(profesorFullName) === formatName(userFullName);
+                        // Comparar nombres normalizados
+                        const profesorNormalized = normalizeName(profesorFullName);
+                        const userNormalized = normalizeName(userFullName);
+
+                        // Si los nombres normalizados coinciden exactamente
+                        if (profesorNormalized === userNormalized && profesorNormalized !== '') {
+                          return true;
+                        }
+
+                        // Comparación parcial: verificar si todas las palabras del usuario están en el nombre del profesor
+                        if (userNormalized && profesorNormalized) {
+                          const userWords = userNormalized.split(' ').filter(w => w.length > 0);
+                          const profesorWords = profesorNormalized.split(' ').filter(w => w.length > 0);
+                          
+                          // Si todas las palabras del usuario están en el profesor (en cualquier orden)
+                          if (userWords.length > 0 && userWords.every(word => 
+                            profesorWords.some(pWord => pWord.includes(word) || word.includes(pWord))
+                          )) {
+                            return true;
+                          }
+                        }
+
+                        return false;
                       })
                     ).map((aula) => (
                       <div key={aula._id} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
@@ -10486,36 +10518,72 @@ export default function SidebarPage() {
                           <div className="mt-4">
                             <p className="text-sm font-semibold text-gray-600 mb-2">Mis Materias:</p>
                             <div className="space-y-2">
-                              {materiasPorAnio[aula.anio + ' año']?.map((materia) => {
-                                const asignacion = aula.asignaciones?.find(asig => asig.materia?.id === materia.id);
-                                if (!asignacion?.profesor) return null;
-
-                                const formatName = (name) => {
-                                  if (!name) return '';
-                                  const words = name.toUpperCase().split(' ');
-                                  if (words.length === 4) {
-                                    return `${words[0]} ${words[2]}`;
+                              {aula.asignaciones?.filter(asignacion => {
+                                if (!asignacion.profesor) return false;
+                                
+                                // Primero intentar comparar por ID si está disponible
+                                if (asignacion.profesorId && userData?.id) {
+                                  const asignacionProfesorId = asignacion.profesorId.toString();
+                                  const userProfesorId = userData.id.toString();
+                                  if (asignacionProfesorId === userProfesorId) {
+                                    return true;
                                   }
-                                  return name.toUpperCase();
+                                }
+                                
+                                // Si no hay match por ID, comparar por nombre
+                                const normalizeName = (name) => {
+                                  if (!name) return '';
+                                  // Normalizar: eliminar espacios extra, convertir a mayúsculas, eliminar acentos
+                                  return name
+                                    .trim()
+                                    .toUpperCase()
+                                    .normalize('NFD')
+                                    .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
+                                    .replace(/\s+/g, ' '); // Normalizar espacios
                                 };
 
-                                const profesorFullName = `${asignacion.profesor.nombre || ''} ${asignacion.profesor.apellido || ''}`;
-                                const userFullName = `${userData?.nombre || ''} ${userData?.apellido || ''}`;
-                                const namesMatch = formatName(profesorFullName) === formatName(userFullName);
+                                const profesorFullName = `${asignacion.profesor?.nombre || ''} ${asignacion.profesor?.apellido || ''}`.trim();
+                                const userFullName = `${userData?.nombre || ''} ${userData?.apellido || ''}`.trim();
 
-                                if (!namesMatch) return null;
+                                // Comparar nombres normalizados
+                                const profesorNormalized = normalizeName(profesorFullName);
+                                const userNormalized = normalizeName(userFullName);
+
+                                // Si los nombres normalizados coinciden exactamente
+                                if (profesorNormalized === userNormalized && profesorNormalized !== '') {
+                                  return true;
+                                }
+
+                                // Comparación parcial: verificar si todas las palabras del usuario están en el nombre del profesor
+                                if (userNormalized && profesorNormalized) {
+                                  const userWords = userNormalized.split(' ').filter(w => w.length > 0);
+                                  const profesorWords = profesorNormalized.split(' ').filter(w => w.length > 0);
+                                  
+                                  // Si todas las palabras del usuario están en el profesor (en cualquier orden)
+                                  if (userWords.length > 0 && userWords.every(word => 
+                                    profesorWords.some(pWord => pWord.includes(word) || word.includes(pWord))
+                                  )) {
+                                    return true;
+                                  }
+                                }
+
+                                return false;
+                              }).map((asignacion) => {
+                                const materia = materiasPorAnio[aula.anio + ' año']?.find(m => m.id === asignacion.materia?.id);
+                                const materiaNombre = materia?.nombre || asignacion.materia?.nombre || 'Materia sin nombre';
+                                const materiaId = materia?.id || asignacion.materia?.id || asignacion._id;
 
                                 return (
                                   <button
-                                    key={materia.id}
-                                    onClick={() => router.push(`/calificaciones?aulaId=${aula._id}&materiaId=${materia.id}`)}
+                                    key={materiaId}
+                                    onClick={() => router.push(`/calificaciones?aulaId=${aula._id}&materiaId=${materiaId}`)}
                                     className="w-full text-left px-3 py-2 rounded bg-gray-50 hover:bg-gray-100 transition-colors"
                                   >
                                     <div className="flex justify-between items-center">
                                       <div>
-                                        <span className="font-medium block">{materia.nombre}</span>
+                                        <span className="font-medium block">{materiaNombre}</span>
                                         <span className="text-sm text-gray-600 block">
-                                          {asignacion.profesor.nombre} {asignacion.profesor.apellido}
+                                          {asignacion.profesor?.nombre || ''} {asignacion.profesor?.apellido || ''}
                                         </span>
                                       </div>
                                       <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
