@@ -17,9 +17,9 @@ import { loadDriver } from '../utils/driverLoader';
 
 const CERTIFICADO_EVALUACION_OPTIONS = [
   {
-    id: 'final',
-    title: 'Final',
-    description: 'Certificación final del período académico con todos los momentos consolidados.'
+    id: 'resumen-final',
+    title: 'Resumen Final',
+    description: 'Carga los Excel consolidados de estudiantes y docentes para archivarlos en el sistema.'
   },
   {
     id: 'revision',
@@ -41,7 +41,7 @@ const CERTIFICADO_MOMENTO_OPTIONS = [
 ];
 
 const CERTIFICADO_EVALUACION_LABELS = {
-  final: 'Final',
+  'resumen-final': 'Resumen Final',
   revision: 'Revisión',
   'materia-pendiente': 'Materia Pendiente'
 };
@@ -88,6 +88,27 @@ const FORMATO_EXCEL_CONFIG = FORMATO_EXCEL_OPTIONS.reduce((acc, option) => {
 
 const FORMATO_EXCEL_DEFAULT = '1-3';
 
+const RESUMEN_FINAL_TIPOS = [
+  { value: 'resumen-final', label: 'Resumen Final' },
+  { value: 'revision', label: 'Revisión' },
+  { value: 'materia-pendiente', label: 'Materia Pendiente' }
+];
+
+const MESES_REPORTE = [
+  'ENERO',
+  'FEBRERO',
+  'MARZO',
+  'ABRIL',
+  'MAYO',
+  'JUNIO',
+  'JULIO',
+  'AGOSTO',
+  'SEPTIEMBRE',
+  'OCTUBRE',
+  'NOVIEMBRE',
+  'DICIEMBRE'
+];
+
 const createEmptyCertificadoForm = () => ({
   tipoEvaluacion: '',
   momento: 'octubre',
@@ -96,6 +117,16 @@ const createEmptyCertificadoForm = () => ({
     cedula: '',
     nombres: '',
     apellidos: ''
+  },
+  resumenFinal: {
+    excelEstudiantes: null,
+    excelDocentes: null,
+    grado: '',
+    seccion: '',
+    anioEscolarInicio: '',
+    anioEscolarFin: '',
+    mesReporte: '',
+    tipoReporte: 'resumen-final'
   }
 });
 
@@ -296,6 +327,8 @@ export default function SidebarPage() {
   
   // Estados para gestión de profesores por materia
   const [showGestionProfesoresModal, setShowGestionProfesoresModal] = useState(false);
+  const [docentesSeleccionados, setDocentesSeleccionados] = useState([]);
+  const [busquedaDocente, setBusquedaDocente] = useState('');
   const [aulaGestionProfesores, setAulaGestionProfesores] = useState(null);
   const [profesoresDisponibles, setProfesoresDisponibles] = useState([]);
   const [asignacionesAula, setAsignacionesAula] = useState([]);
@@ -1357,7 +1390,11 @@ export default function SidebarPage() {
     console.log('updateCertificadoForm llamado:', { tab, updates });
     setCertificadoFormState((prev) => {
       const prevTabState = prev[tab] || createEmptyCertificadoForm();
-      const { estudiante: estudianteUpdates, ...rest } = updates;
+      const {
+        estudiante: estudianteUpdates,
+        resumenFinal: resumenFinalUpdates,
+        ...rest
+      } = updates;
 
       const newState = {
         ...prev,
@@ -1366,7 +1403,10 @@ export default function SidebarPage() {
           ...rest,
           estudiante: estudianteUpdates
             ? { ...prevTabState.estudiante, ...estudianteUpdates }
-            : prevTabState.estudiante
+            : prevTabState.estudiante,
+          resumenFinal: resumenFinalUpdates
+            ? { ...prevTabState.resumenFinal, ...resumenFinalUpdates }
+            : prevTabState.resumenFinal
         }
       };
       
@@ -1398,6 +1438,7 @@ export default function SidebarPage() {
   const [previewNotasHtml, setPreviewNotasHtml] = useState('');
   const [previewNotasBlob, setPreviewNotasBlob] = useState(null);
   const [previewNotasFileName, setPreviewNotasFileName] = useState('');
+  const [resumenFinalUploading, setResumenFinalUploading] = useState(false);
 
   // Estados para inscripción de alumnos
   const [showInscripcionModal, setShowInscripcionModal] = useState(false);
@@ -1683,6 +1724,11 @@ export default function SidebarPage() {
       return;
     }
 
+    if (tipoEvaluacion === 'resumen-final') {
+      procesarResumenFinal(form, 'agregar');
+      return;
+    }
+
     console.log('Registro de certificado de evaluación:', {
       tipoEvaluacion,
       momento: tipoEvaluacion === 'materia-pendiente' ? momento : null,
@@ -1704,6 +1750,11 @@ export default function SidebarPage() {
       return;
     }
 
+    if (tipoEvaluacion === 'resumen-final') {
+      procesarResumenFinal(form, 'generar');
+      return;
+    }
+
     handleGenerarExcelNotas({
       estudiante,
       tipoFormato: formato,
@@ -1712,24 +1763,205 @@ export default function SidebarPage() {
     });
   };
 
+  const procesarResumenFinal = async (form, contexto) => {
+    const resumenFinalData = form?.resumenFinal || {};
+    const gradoSeleccionado = resumenFinalData.grado;
+    const seccionSeleccionada = (resumenFinalData.seccion || '').trim();
+    const anioInicio = (resumenFinalData.anioEscolarInicio || '').trim();
+    const anioFin = (resumenFinalData.anioEscolarFin || '').trim();
+    const mesSeleccionado = (resumenFinalData.mesReporte || '').trim();
+    const tipoReporteSeleccionado = (resumenFinalData.tipoReporte || 'resumen-final').trim();
+    const archivos = resumenFinalData;
+    const excelEstudiantes = archivos.excelEstudiantes;
+    const excelDocentes = archivos.excelDocentes;
+
+    if (!gradoSeleccionado) {
+      setNotification({
+        type: 'error',
+        message: 'Selecciona el año (1° a 5°) antes de generar el resumen final.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    if (!seccionSeleccionada) {
+      setNotification({
+        type: 'error',
+        message: 'Indica la sección del aula antes de generar el resumen final.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    if (!anioInicio || !anioFin) {
+      setNotification({
+        type: 'error',
+        message: 'Completa el año escolar (inicio y fin) antes de generar el resumen final.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    if (!mesSeleccionado) {
+      setNotification({
+        type: 'error',
+        message: 'Selecciona el mes del reporte antes de generar el resumen final.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    if (!tipoReporteSeleccionado) {
+      setNotification({
+        type: 'error',
+        message: 'Selecciona el tipo de evaluación antes de generar el resumen final.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    if (!(excelEstudiantes instanceof File) || !(excelDocentes instanceof File)) {
+      setNotification({
+        type: 'error',
+        message: 'Selecciona ambos archivos (estudiantes y docentes) antes de continuar.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    try {
+      setResumenFinalUploading(true);
+      setNotification({ type: 'info', message: 'Procesando resumen final...' });
+
+      const formData = new FormData();
+      formData.append('tipoEvaluacion', 'resumen-final');
+      formData.append('formato', form?.formato || '');
+      formData.append('momento', form?.momento || '');
+      formData.append('contexto', contexto);
+      if (userData?._id) {
+        formData.append('usuarioId', userData._id);
+      }
+      const usuarioNombre = `${userData?.nombre || ''} ${userData?.apellido || ''}`.trim();
+      if (usuarioNombre) {
+        formData.append('usuarioNombre', usuarioNombre);
+      }
+      formData.append('grado', gradoSeleccionado);
+      formData.append('seccion', seccionSeleccionada);
+      formData.append('anioEscolarInicio', anioInicio);
+      formData.append('anioEscolarFin', anioFin);
+      formData.append('mesReporte', mesSeleccionado);
+      formData.append('tipoEvaluacion', tipoReporteSeleccionado);
+      formData.append('excelEstudiantes', excelEstudiantes);
+      formData.append('excelDocentes', excelDocentes);
+
+      const response = await fetch('/api/resumen-final', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo guardar el resumen final');
+      }
+
+      setNotification({
+        type: 'success',
+        message: `Resumen final guardado (${data?.totales?.estudiantes || 0} estudiantes, ${data?.totales?.docentes || 0} docentes).`
+      });
+      setTimeout(() => setNotification(null), 5000);
+
+      if (typeof window !== 'undefined' && data?.excelBase64) {
+        const byteCharacters = atob(data.excelBase64);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], {
+          type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        });
+        const url = window.URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = data.excelFileName || 'Resumen_Final_1Año.xlsx';
+        document.body.appendChild(link);
+        link.click();
+        link.remove();
+        window.URL.revokeObjectURL(url);
+      }
+
+      updateCertificadoForm(contexto, {
+        resumenFinal: {
+          excelEstudiantes: null,
+          excelDocentes: null,
+          grado: '',
+          seccion: '',
+          anioEscolarInicio: '',
+          anioEscolarFin: '',
+          mesReporte: '',
+          tipoReporte: 'resumen-final'
+        }
+      });
+    } catch (error) {
+      console.error('Error al guardar resumen final:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Error al guardar el resumen final'
+      });
+      setTimeout(() => setNotification(null), 5000);
+    } finally {
+      setResumenFinalUploading(false);
+    }
+  };
+
   const renderCertificadoEvaluacionForm = ({
     tabKey,
     formState,
     showHelper = false,
     submitLabel,
-    onSubmit
+    onSubmit,
+    resumenFinalUploading: resumenUploadingFlag = false
   }) => {
-    const { tipoEvaluacion, momento, formato, estudiante } = formState;
+    const { tipoEvaluacion, momento, formato, estudiante, resumenFinal } = formState;
     console.log('Renderizando formulario - Estado actual:', { tabKey, tipoEvaluacion, momento, formato });
     const hasTipoSeleccionado = Boolean(tipoEvaluacion);
     const momentVisible = tipoEvaluacion === 'materia-pendiente';
+    const resumenFinalData =
+      resumenFinal || {
+        excelEstudiantes: null,
+        excelDocentes: null,
+        grado: '',
+        seccion: '',
+        anioEscolarInicio: '',
+        anioEscolarFin: '',
+        mesReporte: '',
+        tipoReporte: 'resumen-final'
+      };
+    const requiereResumenFinal = tipoEvaluacion === 'resumen-final';
+    const resumenFinalListo = resumenFinalData.excelEstudiantes instanceof File && resumenFinalData.excelDocentes instanceof File;
+    const resumenGradoValido = Boolean(resumenFinalData.grado);
+    const resumenSeccionValida = Boolean(resumenFinalData.seccion && resumenFinalData.seccion.trim());
+    const resumenAnioInicioValido = Boolean(resumenFinalData.anioEscolarInicio);
+    const resumenAnioFinValido = Boolean(resumenFinalData.anioEscolarFin);
+    const resumenMesValido = Boolean(resumenFinalData.mesReporte);
+    const resumenTipoValido = Boolean(resumenFinalData.tipoReporte);
     const labelEvaluacion = evaluacionLabelMapGlobal[tipoEvaluacion] || 'Selecciona un tipo';
     const resumenMomento = momentVisible
       ? (CERTIFICADO_MOMENTO_OPTIONS.find((m) => m.id === momento)?.label || 'Octubre')
       : '';
+    const submitDisabled = !hasTipoSeleccionado ||
+      (requiereResumenFinal &&
+        (!resumenFinalListo ||
+          !resumenGradoValido ||
+          !resumenSeccionValida ||
+          !resumenAnioInicioValido ||
+          !resumenAnioFinValido ||
+          !resumenMesValido ||
+          !resumenTipoValido)) ||
+      resumenUploadingFlag;
 
     const handleSubmit = () => {
-      if (!hasTipoSeleccionado || typeof onSubmit !== 'function') return;
+      if (submitDisabled || typeof onSubmit !== 'function') return;
       onSubmit();
     };
 
@@ -1737,12 +1969,68 @@ export default function SidebarPage() {
       console.log('Tipo de evaluación seleccionado:', value);
       updateCertificadoForm(tabKey, {
         tipoEvaluacion: value,
-        momento: value === 'materia-pendiente' ? momento || 'octubre' : 'octubre'
+        momento: value === 'materia-pendiente' ? momento || 'octubre' : 'octubre',
+        resumenFinal: value === 'resumen-final'
+          ? resumenFinalData
+          : {
+              excelEstudiantes: null,
+              excelDocentes: null,
+              grado: '',
+              seccion: '',
+              anioEscolarInicio: '',
+              anioEscolarFin: '',
+              mesReporte: '',
+              tipoReporte: 'resumen-final'
+            }
       });
     };
 
     const handleMomentoChange = (value) => {
       updateCertificadoForm(tabKey, { momento: value });
+    };
+
+    const handleResumenFinalFileChange = (campo, event) => {
+      const file = event?.target?.files?.[0] || null;
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { [campo]: file }
+      });
+    };
+
+    const clearResumenFinalFile = (campo) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { [campo]: null }
+      });
+    };
+
+    const handleResumenFinalGradoChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { grado: value }
+      });
+    };
+
+    const handleResumenFinalSeccionChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { seccion: value.toUpperCase() }
+      });
+    };
+
+    const handleResumenFinalAnioChange = (campo, value) => {
+      const sanitized = value.replace(/[^0-9]/g, '').slice(0, 4);
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { [campo]: sanitized }
+      });
+    };
+
+    const handleResumenFinalMesChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { mesReporte: value.toUpperCase() }
+      });
+    };
+
+    const handleResumenFinalTipoChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { tipoReporte: value }
+      });
     };
 
     const handleFormatoChange = (value) => {
@@ -1754,6 +2042,214 @@ export default function SidebarPage() {
     };
 
     const getId = (suffix) => `${tabKey}-${suffix}`;
+
+    if (requiereResumenFinal) {
+      return (
+        <div className="space-y-6">
+          {showHelper && (
+            <div className="bg-blue-50 border border-blue-100 text-blue-800 px-4 py-3 rounded-md">
+              <p className="text-sm">
+                Carga los dos archivos Excel: el de estudiantes con notas y el de docentes asignados. Toda la demás información se tomará directamente de los archivos.
+              </p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {CERTIFICADO_EVALUACION_OPTIONS.filter((option) => option.id === 'resumen-final').map((option) => {
+              const isActive = tipoEvaluacion === option.id;
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  onClick={() => handleTipoEvaluacionChange(option.id)}
+                  className={`text-left border rounded-lg p-4 transition-all ${
+                    isActive
+                      ? 'border-blue-600 bg-blue-50 shadow-md'
+                      : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-sm'
+                  }`}
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-base font-semibold text-gray-800">{option.title}</span>
+                    {isActive && (
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 011.414-1.414L8.5 11.086l6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
+                      </svg>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-600 leading-relaxed">{option.description}</p>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-4">
+            <h4 className="text-sm font-semibold text-amber-900">Archivos requeridos</h4>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Tipo de evaluación</label>
+                <select
+                  value={resumenFinalData.tipoReporte || 'resumen-final'}
+                  onChange={(e) => handleResumenFinalTipoChange(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                >
+                  {RESUMEN_FINAL_TIPOS.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                {!resumenTipoValido && (
+                  <p className="text-xs text-red-600">Selecciona el tipo de evaluación.</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Excel de estudiantes con notas</label>
+                <input
+                  type="file"
+                  accept=".xls,.xlsx"
+                  onChange={(e) => handleResumenFinalFileChange('excelEstudiantes', e)}
+                  className="block w-full text-sm text-gray-700 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200"
+                />
+                {resumenFinalData.excelEstudiantes && (
+                  <div className="flex items-center justify-between text-xs text-gray-700 bg-white border rounded px-3 py-2">
+                    <span className="truncate pr-2">{resumenFinalData.excelEstudiantes.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => clearResumenFinalFile('excelEstudiantes')}
+                      className="text-red-500 hover:text-red-700 font-semibold"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Excel de docentes</label>
+                <input
+                  type="file"
+                  accept=".xls,.xlsx"
+                  onChange={(e) => handleResumenFinalFileChange('excelDocentes', e)}
+                  className="block w-full text-sm text-gray-700 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-amber-100 file:text-amber-700 hover:file:bg-amber-200"
+                />
+                {resumenFinalData.excelDocentes && (
+                  <div className="flex items-center justify-between text-xs text-gray-700 bg-white border rounded px-3 py-2">
+                    <span className="truncate pr-2">{resumenFinalData.excelDocentes.name}</span>
+                    <button
+                      type="button"
+                      onClick={() => clearResumenFinalFile('excelDocentes')}
+                      className="text-red-500 hover:text-red-700 font-semibold"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año a generar</label>
+                <select
+                  value={resumenFinalData.grado}
+                  onChange={(e) => handleResumenFinalGradoChange(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                >
+                  <option value="">Selecciona el año</option>
+                  <option value="1">1° año</option>
+                  <option value="2">2° año</option>
+                  <option value="3">3° año</option>
+                  <option value="4">4° año</option>
+                  <option value="5">5° año</option>
+                </select>
+                {!resumenGradoValido && (
+                  <p className="text-xs text-red-600">Debes indicar el año del aula.</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Sección</label>
+                <input
+                  type="text"
+                  value={resumenFinalData.seccion || ''}
+                  onChange={(e) => handleResumenFinalSeccionChange(e.target.value)}
+                  maxLength={5}
+                  placeholder="Ej: A"
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400 uppercase"
+                />
+                {!resumenSeccionValida && (
+                  <p className="text-xs text-red-600">Debes indicar la sección.</p>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año escolar (inicio)</label>
+                <input
+                  type="text"
+                  value={resumenFinalData.anioEscolarInicio || ''}
+                  onChange={(e) => handleResumenFinalAnioChange('anioEscolarInicio', e.target.value)}
+                  maxLength={4}
+                  placeholder="Ej: 2024"
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                />
+                {!resumenAnioInicioValido && (
+                  <p className="text-xs text-red-600">Indica el año inicial (ej. 2024).</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año escolar (final)</label>
+                <input
+                  type="text"
+                  value={resumenFinalData.anioEscolarFin || ''}
+                  onChange={(e) => handleResumenFinalAnioChange('anioEscolarFin', e.target.value)}
+                  maxLength={4}
+                  placeholder="Ej: 2025"
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                />
+                {!resumenAnioFinValido && (
+                  <p className="text-xs text-red-600">Indica el año final (ej. 2025).</p>
+                )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Mes del reporte</label>
+                <select
+                  value={resumenFinalData.mesReporte || ''}
+                  onChange={(e) => handleResumenFinalMesChange(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                >
+                  <option value="">Selecciona un mes</option>
+                  {MESES_REPORTE.map((mes) => (
+                    <option key={mes} value={mes}>
+                      {mes}
+                    </option>
+                  ))}
+                </select>
+                {!resumenMesValido && <p className="text-xs text-red-600">Selecciona el mes del reporte.</p>}
+              </div>
+            </div>
+            <p className="text-xs text-amber-800">
+              Los datos se extraerán directamente de los archivos y se guardarán en la colección Resumen Final.
+            </p>
+          </div>
+
+          <div className="flex justify-end">
+            <button
+              id={getId('btn-submit')}
+              className={`px-5 py-3 rounded-md font-semibold shadow-sm flex items-center justify-center gap-2 ${
+                submitDisabled
+                  ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                  : 'bg-green-600 text-white hover:bg-green-700 transition-colors'
+              }`}
+              disabled={submitDisabled}
+              onClick={handleSubmit}
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              {resumenUploadingFlag ? 'Procesando...' : (submitLabel || 'Guardar (Resumen Final)')}
+            </button>
+          </div>
+        </div>
+      );
+    }
 
     return (
       <div className="space-y-6">
@@ -1768,7 +2264,7 @@ export default function SidebarPage() {
         <div>
           <label className="block text-sm font-semibold text-gray-700 mb-3">Tipo de Evaluación</label>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {CERTIFICADO_EVALUACION_OPTIONS.map((option) => {
+            {CERTIFICADO_EVALUACION_OPTIONS.filter((option) => option.id === 'resumen-final').map((option) => {
               const isActive = tipoEvaluacion === option.id;
               return (
                 <button
@@ -1887,13 +2383,18 @@ export default function SidebarPage() {
               </div>
               <button
                 id={getId('btn-submit')}
-                className="px-5 py-3 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-semibold shadow-sm flex items-center justify-center gap-2"
+                className={`px-5 py-3 rounded-md font-semibold shadow-sm flex items-center justify-center gap-2 ${
+                  submitDisabled
+                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                    : 'bg-green-600 text-white hover:bg-green-700 transition-colors'
+                }`}
+                disabled={submitDisabled}
                 onClick={handleSubmit}
               >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                {submitLabel || `Guardar (${labelEvaluacion})`}
+                {resumenUploadingFlag ? 'Procesando...' : (submitLabel || `Guardar (${labelEvaluacion})`)}
               </button>
             </div>
           </>
@@ -2029,6 +2530,49 @@ export default function SidebarPage() {
     } catch (error) {
       console.error('Error al exportar Excel:', error);
       setNotification({ type: 'error', message: 'No se pudo exportar el Excel' });
+    }
+  };
+
+  const handleDescargarExcelDocentes = async (aulaId = null, nombreAula = '', opciones = {}) => {
+    try {
+      const mensaje = aulaId
+        ? `Generando Excel de docentes para ${nombreAula || 'el aula'}...`
+        : 'Generando Excel de docentes...';
+      setNotification({ type: 'info', message: mensaje });
+
+      const params = new URLSearchParams();
+      if (opciones.selected && opciones.selected.length > 0) {
+        params.set('selected', opciones.selected.join(','));
+      }
+
+      const queryString = params.toString();
+      const endpointBase = aulaId
+        ? `/api/aulas/${aulaId}/docentes-excel`
+        : '/api/docentes/excel-simple';
+      const endpoint = queryString ? `${endpointBase}?${queryString}` : endpointBase;
+
+      const response = await fetch(endpoint);
+      if (!response.ok) {
+        throw new Error('No se pudo generar el Excel de docentes');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      const fileName = aulaId
+        ? `Excel_Docentes_${(nombreAula || 'Aula').replace(/\s+/g, '_')}.xlsx`
+        : 'Excel_Docentes.xlsx';
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+
+      setNotification({ type: 'success', message: 'Excel de docentes descargado' });
+    } catch (error) {
+      console.error('Error al descargar Excel de docentes:', error);
+      setNotification({ type: 'error', message: error.message || 'Error al descargar el Excel' });
     }
   };
 
@@ -2285,7 +2829,13 @@ export default function SidebarPage() {
 
       if (result.success && Array.isArray(result.data)) {
         const profesores = result.data;
-        console.log('Profesores cargados:', profesores);
+        console.log('Profesores cargados:', profesores.length, 'total');
+        console.log('Primeros 3 profesores con sus IDs:', profesores.slice(0, 3).map(p => ({
+          _id: p._id,
+          id: p.id,
+          nombre: p.nombre,
+          apellido: p.apellido
+        })));
         setDocentes(profesores);
         setProfesoresDisponibles(profesores); // También actualizar el estado para gestión de profesores
       } else {
@@ -5303,6 +5853,157 @@ export default function SidebarPage() {
       setAsignacionesAula(fallbackAsignaciones);
       return fallbackAsignaciones;
     }
+  };
+
+  const normalizeNombreClave = (valor = '') =>
+    valor.toString().trim().toLowerCase().replace(/\s+/g, ' ');
+
+  const obtenerIdProfesor = useCallback((profesor) => {
+    if (!profesor) return '';
+    console.log('🔍 obtenerIdProfesor llamado con:', profesor);
+    const id = profesor._id || profesor.id || '';
+    console.log('  → ID encontrado:', id);
+    if (id) return id.toString();
+    const nombre = normalizeNombreClave(profesor.nombre || '');
+    const apellido = normalizeNombreClave(profesor.apellido || '');
+    if (nombre || apellido) {
+      const generado = `${nombre}|${apellido}`;
+      console.log('  → ID generado (nombre|apellido):', generado);
+      return generado;
+    }
+    const cedula = profesor.idU || profesor.cedula;
+    if (cedula) {
+      console.log('  → ID desde cédula:', cedula);
+      return cedula.toString();
+    }
+    console.log('  → Sin ID válido');
+    return '';
+  }, []);
+
+  const obtenerAsignacionMateria = useCallback((materia, asignaciones = asignacionesAula) => {
+    if (!materia || !Array.isArray(asignaciones)) return null;
+    return asignaciones.find(a => {
+      const criterios = [
+        a.materiaId === materia.id,
+        a.materia?.id === materia.id,
+        a.materiaNombre === materia.nombre,
+        a.materia?.codigo === materia.codigo,
+        a.materia?.nombre === materia.nombre,
+        (a.materia && a.materia.id === materia.id),
+        (a.materia && a.materia.codigo === materia.codigo)
+      ];
+      return criterios.some(Boolean);
+    }) || null;
+  }, [asignacionesAula]);
+
+  const obtenerProfesorIdPorAsignacion = useCallback((asignacion) => {
+    if (!asignacion) return '';
+    if (asignacion.profesorId) return asignacion.profesorId.toString();
+
+    const nombreCompleto =
+      asignacion.profesorNombre ||
+      `${asignacion.profesor?.nombre || ''} ${asignacion.profesor?.apellido || ''}`.trim();
+
+    if (!nombreCompleto) return '';
+
+    const profesorEncontrado = profesoresDisponibles.find((profesor) => {
+      const nombre = `${profesor.nombre || ''} ${profesor.apellido || ''}`.trim().toLowerCase();
+      return nombre === nombreCompleto.toLowerCase();
+    });
+
+    return obtenerIdProfesor(profesorEncontrado);
+  }, [profesoresDisponibles, obtenerIdProfesor]);
+
+  const inicializarSeleccionDocentes = useCallback(() => {
+    if (!aulaGestionProfesores) return;
+    const materias = materiasPorAnio[`${aulaGestionProfesores.anio} año`] || [];
+    const ids = [];
+
+    materias.forEach((materia) => {
+      const asignacion = obtenerAsignacionMateria(materia);
+      const profesorId = obtenerProfesorIdPorAsignacion(asignacion);
+      if (profesorId && !ids.includes(profesorId)) {
+        ids.push(profesorId);
+      }
+    });
+
+    if (ids.length > 0) {
+      setDocentesSeleccionados(ids);
+    } else {
+      setDocentesSeleccionados([]);
+    }
+  }, [aulaGestionProfesores, obtenerAsignacionMateria, obtenerProfesorIdPorAsignacion]);
+
+  useEffect(() => {
+    if (showGestionProfesoresModal && aulaGestionProfesores) {
+      inicializarSeleccionDocentes();
+    } else if (!showGestionProfesoresModal) {
+      setDocentesSeleccionados([]);
+      setBusquedaDocente('');
+    }
+  }, [showGestionProfesoresModal, aulaGestionProfesores, asignacionesAula, profesoresDisponibles, inicializarSeleccionDocentes]);
+
+  const toggleDocenteSeleccion = (profesorId) => {
+    if (!profesorId) return;
+    setDocentesSeleccionados((prev) => {
+      if (prev.includes(profesorId)) {
+        return prev.filter((id) => id !== profesorId);
+      }
+      return [...prev, profesorId];
+    });
+  };
+
+  const profesoresFiltradosModal = useMemo(() => {
+    const termino = busquedaDocente.trim().toLowerCase();
+    if (!termino) return profesoresDisponibles;
+    return profesoresDisponibles.filter((profesor) => {
+      const texto = `${profesor.nombre || ''} ${profesor.apellido || ''}`.toLowerCase();
+      const cedula = (profesor.idU || profesor.cedula || '').toLowerCase();
+      return texto.includes(termino) || cedula.includes(termino);
+    });
+  }, [profesoresDisponibles, busquedaDocente]);
+
+  const docentesSeleccionadosInfo = useMemo(() => {
+    return docentesSeleccionados
+      .map((id) => profesoresDisponibles.find((profesor) => obtenerIdProfesor(profesor) === id))
+      .filter(Boolean);
+  }, [docentesSeleccionados, profesoresDisponibles, obtenerIdProfesor]);
+
+  const moverDocenteSeleccionado = (profesorId, direccion) => {
+    setDocentesSeleccionados((prev) => {
+      const index = prev.indexOf(profesorId);
+      if (index === -1) return prev;
+      const nuevoOrden = [...prev];
+      if (direccion === 'up' && index > 0) {
+        [nuevoOrden[index - 1], nuevoOrden[index]] = [nuevoOrden[index], nuevoOrden[index - 1]];
+      } else if (direccion === 'down' && index < nuevoOrden.length - 1) {
+        [nuevoOrden[index + 1], nuevoOrden[index]] = [nuevoOrden[index], nuevoOrden[index + 1]];
+      }
+      return nuevoOrden;
+    });
+  };
+
+  const handleGenerarExcelDocentesDesdeModal = async () => {
+    if (!aulaGestionProfesores) return;
+    if (docentesSeleccionados.length === 0) {
+      setNotification({
+        type: 'error',
+        message: 'Selecciona al menos un docente para generar el Excel.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+    console.log('🔍 Frontend - IDs seleccionados a enviar:', docentesSeleccionados);
+    console.log('👥 Frontend - Información de docentes:', docentesSeleccionadosInfo.map(p => ({
+      nombre: p.nombre,
+      apellido: p.apellido,
+      _id: p._id,
+      id: obtenerIdProfesor(p)
+    })));
+    const nombreAula = `${aulaGestionProfesores.anio || ''}° ${aulaGestionProfesores.seccion || ''}`.trim();
+    await handleDescargarExcelDocentes(aulaGestionProfesores._id, nombreAula, {
+      selected: docentesSeleccionados
+    });
   };
 
   const cambiarProfesorMateria = async (materiaId, profesorId, materiaNombre) => {
@@ -9575,7 +10276,8 @@ export default function SidebarPage() {
             submitLabel: certificadoAgregarForm.tipoEvaluacion
               ? `Guardar (${evaluacionLabelMapGlobal[certificadoAgregarForm.tipoEvaluacion]})`
               : 'Guardar configuración',
-            onSubmit: handleRegistrarCertificadoEvaluacion
+            onSubmit: handleRegistrarCertificadoEvaluacion,
+            resumenFinalUploading
           })}
 
           {certificadoEvaluacionTab === 'generar' && renderCertificadoEvaluacionForm({
@@ -9585,7 +10287,8 @@ export default function SidebarPage() {
             submitLabel: certificadoGenerarForm.tipoEvaluacion
               ? `Generar Certificado (${evaluacionLabelMapGlobal[certificadoGenerarForm.tipoEvaluacion]})`
               : 'Generar Certificado',
-            onSubmit: handleGenerarCertificadoEvaluacion
+            onSubmit: handleGenerarCertificadoEvaluacion,
+            resumenFinalUploading
           })}
         </div>
       )}
@@ -13517,27 +14220,8 @@ export default function SidebarPage() {
                 
                 <div className="grid gap-4">
                 {materiasPorAnio[aulaGestionProfesores.anio + ' año']?.map((materia) => {
-                  const asignacionExistente = asignacionesAula.find(a => {
-                    // Buscar por diferentes estructuras de datos
-                    const criterios = [
-                      a.materiaId === materia.id,
-                      a.materia?.id === materia.id,
-                      a.materiaNombre === materia.nombre,
-                      a.materia?.codigo === materia.codigo,
-                      a.materia?.nombre === materia.nombre,
-                      // También buscar en la estructura del aula directamente
-                      (a.materia && a.materia.id === materia.id),
-                      (a.materia && a.materia.codigo === materia.codigo)
-                    ];
-                    
-                    return criterios.some(criterio => criterio);
-                  });
+                  const asignacionExistente = obtenerAsignacionMateria(materia);
                   
-                  // Debug: mostrar información de la materia y asignación
-                  console.log(`Materia ${materia.nombre} (${materia.codigo}):`, materia);
-                  console.log(`Todas las asignaciones:`, asignacionesAula);
-                  console.log(`Asignación encontrada para ${materia.nombre}:`, asignacionExistente);
-                    
                     return (
                       <div key={materia.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50 hover:bg-gray-100 transition-colors">
                         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 items-center">
@@ -13569,21 +14253,9 @@ export default function SidebarPage() {
                           <div className="lg:col-span-1 flex items-center gap-3">
                             <select
                               value={(() => {
-                                // Buscar el ID del profesor en la asignación existente
-                                if (asignacionExistente) {
-                                  // Buscar por nombre y apellido del profesor
-                                  const profesorNombre = asignacionExistente.profesorNombre || 
-                                                        (asignacionExistente.profesor?.nombre + ' ' + (asignacionExistente.profesor?.apellido || '')).trim();
-                                  
-                                  const profesorEncontrado = profesoresDisponibles.find(p => {
-                                    const nombreCompleto = `${p.nombre} ${p.apellido || ''}`.trim();
-                                    return nombreCompleto === profesorNombre || 
-                                           p.nombre === asignacionExistente.profesor?.nombre;
-                                  });
-                                  
-                                  return profesorEncontrado?._id || profesorEncontrado?.id || '';
-                                }
-                                return '';
+                                return asignacionExistente
+                                  ? obtenerProfesorIdPorAsignacion(asignacionExistente)
+                                  : '';
                               })()}
                               onChange={(e) => {
                                 if (e.target.value) {
@@ -13619,6 +14291,121 @@ export default function SidebarPage() {
                       </div>
                     );
                   })}
+                </div>
+              </div>
+
+              <div className="mt-10">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3 mb-4">
+                  <div>
+                    <h4 className="text-lg font-semibold text-gray-700">Generar Excel de Docentes</h4>
+                    <p className="text-sm text-gray-500">Selecciona los docentes que aparecerán en el Excel y organiza el orden deseado.</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-semibold text-gray-700">Listado de docentes</h5>
+                      <span className="text-xs text-gray-500">{profesoresFiltradosModal.length} docentes</span>
+                    </div>
+                    <input
+                      type="text"
+                      value={busquedaDocente}
+                      onChange={(e) => setBusquedaDocente(e.target.value)}
+                      placeholder="Buscar por nombre o cédula..."
+                      className="w-full px-3 py-2 mb-3 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                    <div className="max-h-64 overflow-y-auto divide-y divide-gray-200">
+                      {profesoresFiltradosModal.length === 0 ? (
+                        <p className="text-sm text-gray-500 p-2 text-center">No se encontraron docentes</p>
+                      ) : (
+                        profesoresFiltradosModal.map((profesor) => {
+                          const id = obtenerIdProfesor(profesor);
+                          const seleccionado = docentesSeleccionados.includes(id);
+                          return (
+                            <label
+                              key={id || `${profesor.nombre}-${profesor.apellido}`}
+                              className="flex items-center justify-between py-2 cursor-pointer hover:bg-gray-50 px-2 rounded"
+                            >
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">{profesor.nombre} {profesor.apellido}</p>
+                                <p className="text-xs text-gray-500">Cédula: {profesor.idU || profesor.cedula || 'N/D'}</p>
+                              </div>
+                              <input
+                                type="checkbox"
+                                checked={seleccionado}
+                                onChange={() => toggleDocenteSeleccion(id)}
+                                className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                              />
+                            </label>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                  <div className="p-4 bg-white border border-gray-200 rounded-lg shadow-sm">
+                    <div className="flex items-center justify-between mb-3">
+                      <h5 className="font-semibold text-gray-700">Orden del Excel</h5>
+                      <span className="text-xs text-gray-500">{docentesSeleccionadosInfo.length} seleccionados</span>
+                    </div>
+                    <div className="max-h-64 overflow-y-auto space-y-2">
+                      {docentesSeleccionadosInfo.length === 0 ? (
+                        <p className="text-sm text-gray-500 text-center py-4">Selecciona docentes para definir el orden.</p>
+                      ) : (
+                        docentesSeleccionadosInfo.map((profesor, index) => {
+                          const id = obtenerIdProfesor(profesor);
+                          return (
+                            <div key={`${id}-${index}`} className="flex items-center justify-between p-2 border border-gray-200 rounded-md bg-gray-50">
+                              <div>
+                                <p className="text-sm font-medium text-gray-800">#{index + 1} {profesor.nombre} {profesor.apellido}</p>
+                                <p className="text-xs text-gray-500">Cédula: {profesor.idU || profesor.cedula || 'N/D'}</p>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <button
+                                  onClick={() => moverDocenteSeleccionado(id, 'up')}
+                                  disabled={index === 0}
+                                  className={`p-1 rounded ${index === 0 ? 'text-gray-300' : 'text-blue-600 hover:bg-blue-50'}`}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 15l7-7 7 7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => moverDocenteSeleccionado(id, 'down')}
+                                  disabled={index === docentesSeleccionadosInfo.length - 1}
+                                  className={`p-1 rounded ${index === docentesSeleccionadosInfo.length - 1 ? 'text-gray-300' : 'text-blue-600 hover:bg-blue-50'}`}
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                                  </svg>
+                                </button>
+                                <button
+                                  onClick={() => toggleDocenteSeleccion(id)}
+                                  className="p-1 rounded text-red-500 hover:bg-red-50"
+                                >
+                                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM7.707 7.293a1 1 0 00-1.414 1.414L8.586 11l-2.293 2.293a1 1 0 101.414 1.414L10 12.414l2.293 2.293a1 1 0 001.414-1.414L11.414 11l2.293-2.293a1 1 0 00-1.414-1.414L10 9.586 7.707 7.293z" clipRule="evenodd" />
+                                  </svg>
+                                </button>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div className="mt-4 flex justify-end">
+                  <button
+                    onClick={handleGenerarExcelDocentesDesdeModal}
+                    disabled={docentesSeleccionados.length === 0 || loading}
+                    className={`px-5 py-3 rounded-md text-sm font-medium text-white ${
+                      docentesSeleccionados.length === 0 || loading
+                        ? 'bg-gray-300 cursor-not-allowed'
+                        : 'bg-emerald-600 hover:bg-emerald-700'
+                    }`}
+                  >
+                    Generar Excel de Docentes
+                  </button>
                 </div>
               </div>
 

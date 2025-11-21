@@ -197,6 +197,7 @@ export default function ReportesPage() {
   const [aulaSeleccionada, setAulaSeleccionada] = useState('');
   const [momento, setMomento] = useState('1');
   const [momentoSabana, setMomentoSabana] = useState('1');
+  const [momentoDatosGenerales, setMomentoDatosGenerales] = useState('1');
   
   // Estados para filtros de estudiantes
   const [anioSeleccionado, setAnioSeleccionado] = useState('');
@@ -988,6 +989,99 @@ export default function ReportesPage() {
 
           <p className="text-sm text-gray-500">
             La sábana replica la estructura de EV1..EV5 y NF por materia. Si una materia está bloqueada para el momento seleccionado, sus casillas saldrán vacías.
+          </p>
+        </div>
+
+        {/* Sección de Datos Generales con Notas */}
+        <div className="bg-white rounded-xl shadow-lg p-6 border border-gray-200 mb-8">
+          <div className="flex items-center mb-6">
+            <div className="bg-green-100 p-2 rounded-full mr-3">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+            </div>
+            <h2 className="text-2xl font-bold text-gray-800">Datos Generales con Notas</h2>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Seleccionar Aula</label>
+              <select
+                id="select-aula-datos-generales"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                value={aulaSeleccionada}
+                onChange={(e) => setAulaSeleccionada(e.target.value)}
+              >
+                <option value="">Seleccione un aula</option>
+                {aulasFiltradas.map(a => (
+                  <option key={a._id} value={a._id}>{`${a.anio || ''}° ${a.seccion || ''} - ${a.nombre || ''}`}</option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">Momento</label>
+              <select
+                id="select-momento-datos-generales"
+                className="w-full px-4 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                value={momentoDatosGenerales}
+                onChange={(e) => setMomentoDatosGenerales(e.target.value)}
+              >
+                <option value="1">1er Momento</option>
+                <option value="2">2do Momento</option>
+                <option value="3">3er Momento</option>
+                <option value="final">Definitiva (Promedio 1M, 2M, 3M)</option>
+              </select>
+            </div>
+
+            <div className="flex items-end">
+              <button
+                id="btn-descargar-datos-generales"
+                onClick={async () => {
+                  if (!aulaSeleccionada) {
+                    setError('Por favor, selecciona un aula');
+                    return;
+                  }
+                  
+                  setGenerando(true);
+                  setError(null);
+                  
+                  try {
+                    const params = new URLSearchParams({ 
+                      aulaId: aulaSeleccionada,
+                      momento: momentoDatosGenerales 
+                    });
+                    const resp = await fetch(`/api/reportes/datos-generales-notas?${params.toString()}`);
+                    
+                    if (!resp.ok) throw new Error('No se pudo generar el reporte');
+                    
+                    const blob = await resp.blob();
+                    const momentoLabel = momentoDatosGenerales === 'final' ? 'Definitiva' : `${momentoDatosGenerales}M`;
+                    const fileName = `Datos_Generales_con_Notas_${momentoLabel}.xlsx`;
+                    
+                    // Guardar el blob para descarga posterior
+                    setPendingDownload({ blob, fileName });
+                    
+                    // Parsear y mostrar previsualización
+                    await parseExcelAndPreview(blob, fileName);
+                    
+                  } catch (e) {
+                    console.error(e);
+                    setError(e.message || 'Error generando el reporte');
+                    setGenerando(false);
+                  }
+                }}
+                className={`w-full md:w-auto px-6 py-3 ${generando ? 'bg-gray-400' : 'bg-green-600 hover:bg-green-700'} text-white rounded-md shadow transition-colors`}
+                disabled={generando}
+              >
+                {generando ? 'Generando…' : 'Descargar Reporte Excel'}
+              </button>
+            </div>
+          </div>
+
+          <p className="text-sm text-gray-500">
+            Este reporte incluye datos generales del estudiante (cédula, apellido, nombre, lugar de nacimiento, entidad federal, sexo, fecha de nacimiento separada) 
+            y las notas finales por materia según el momento seleccionado. Si eliges "Definitiva", se mostrará el promedio de los 3 momentos.
           </p>
         </div>
 
