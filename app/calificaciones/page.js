@@ -30,6 +30,19 @@ const convertirLetraANota = (letra) => {
   }
 };
 
+const normalizeMateriasAsignadas = (materias) => {
+  if (!materias) return [];
+  if (Array.isArray(materias)) return materias;
+  if (typeof materias === 'object') {
+    try {
+      return Object.values(materias);
+    } catch {
+      return [];
+    }
+  }
+  return [];
+};
+
 function CalificacionesContent() {
   const searchParams = useSearchParams();
   const aulaId = searchParams.get('aulaId');
@@ -843,23 +856,43 @@ function CalificacionesContent() {
         materiasAsignadas: a.materiasAsignadas
       })));
       
+      const normalizeMateriasAsignadas = (materias) => {
+        if (!materias) return [];
+        const baseArray = Array.isArray(materias)
+          ? materias
+          : typeof materias === 'object'
+            ? Object.values(materias)
+            : [];
+        return baseArray.map((item) => {
+          if (!item) return '';
+          if (typeof item === 'object') {
+            return String(item.id || item.codigo || item.value || '').trim();
+          }
+          return String(item).trim();
+        }).filter(Boolean);
+      };
+
       // Filtrar alumnos: solo los que tienen esta materia asignada
       const alumnosFiltradosInicial = (aulaData.data.alumnos || []).filter(alumno => {
         const alumnoId = alumno._id?.toString() || alumno.id?.toString() || '';
-        const materiasAsignadas = alumno.materiasAsignadas;
+        const materiasAsignadas = normalizeMateriasAsignadas(alumno.materiasAsignadas);
         
         // Si el alumno no tiene materiasAsignadas definidas o tiene array vacío, asume que ve todas (compatibilidad hacia atrás)
-        if (materiasAsignadas === undefined || materiasAsignadas === null || (Array.isArray(materiasAsignadas) && materiasAsignadas.length === 0)) {
+        if (!materiasAsignadas.length) {
           console.log(`✅ Estudiante ${alumno.nombre} ${alumno.apellido || ''} (${alumnoId}): Sin materiasAsignadas o array vacío → VER TODAS`);
           return true; // Por defecto para estudiantes antiguos o sin restricciones, ver todas las materias
         }
         
         // Si tiene materias asignadas, verificar si la materia actual está en la lista
         // Normalizar IDs para comparación (convertir a string y trim)
-        const materiaIdNormalizado = String(materiaId || '').trim();
-        const tieneMateria = Array.isArray(materiasAsignadas) && materiasAsignadas.some(matId => {
-          const matIdNormalizado = String(matId || '').trim();
-          return matIdNormalizado === materiaIdNormalizado;
+        const materiaIdNormalizado = String(materiaId || '').trim().toLowerCase();
+        const materiaCodigoNormalizado = String(asignacion?.materia?.codigo || '').trim().toLowerCase();
+        const tieneMateria = materiasAsignadas.some(matId => {
+          const matIdNormalizado = String(matId || '').trim().toLowerCase();
+          return (
+            matIdNormalizado === materiaIdNormalizado ||
+            (!!materiaCodigoNormalizado && matIdNormalizado === materiaCodigoNormalizado)
+          );
         });
         
         if (tieneMateria) {
@@ -1445,20 +1478,24 @@ function CalificacionesContent() {
       // Filtrar alumnos: solo los que tienen esta materia asignada
       const alumnosFiltrados = (aula.alumnos || []).filter(alumno => {
         const alumnoId = alumno._id?.toString() || alumno.id?.toString() || '';
-        const materiasAsignadas = alumno.materiasAsignadas;
+        const materiasAsignadas = normalizeMateriasAsignadas(alumno.materiasAsignadas);
         
         // Si el alumno no tiene materiasAsignadas definidas o tiene array vacío, asume que ve todas (compatibilidad hacia atrás)
-        if (materiasAsignadas === undefined || materiasAsignadas === null || (Array.isArray(materiasAsignadas) && materiasAsignadas.length === 0)) {
+        if (!materiasAsignadas.length) {
           console.log(`✅ Estudiante ${alumno.nombre} ${alumno.apellido || ''} (${alumnoId}): Sin materiasAsignadas o array vacío → VER TODAS`);
           return true; // Por defecto para estudiantes antiguos o sin restricciones, ver todas las materias
         }
         
         // Si tiene materias asignadas, verificar si la materia actual está en la lista
         // Normalizar IDs para comparación (convertir a string y trim)
-        const materiaIdNormalizado = String(materiaId || '').trim();
-        const tieneMateria = Array.isArray(materiasAsignadas) && materiasAsignadas.some(matId => {
-          const matIdNormalizado = String(matId || '').trim();
-          return matIdNormalizado === materiaIdNormalizado;
+        const materiaIdNormalizado = String(materiaId || '').trim().toLowerCase();
+        const materiaCodigoNormalizado = String(asignacion?.materia?.codigo || '').trim().toLowerCase();
+        const tieneMateria = materiasAsignadas.some(matId => {
+          const matIdNormalizado = String(matId || '').trim().toLowerCase();
+          return (
+            matIdNormalizado === materiaIdNormalizado ||
+            (!!materiaCodigoNormalizado && matIdNormalizado === materiaCodigoNormalizado)
+          );
         });
         
         if (tieneMateria) {

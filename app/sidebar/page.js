@@ -148,6 +148,66 @@ const createRegistroTituloFormState = () => ({
   documentoCodigo: ''
 });
 
+const normalizeMateriasAsignadasData = (materias) => {
+  if (!materias) return [];
+  const baseArray = Array.isArray(materias)
+    ? materias
+    : typeof materias === 'object'
+      ? Object.values(materias)
+      : [materias];
+  return baseArray
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'object') {
+        return String(item.id || item.codigo || item.value || item._id || '').trim();
+      }
+      return String(item).trim();
+    })
+    .filter(Boolean);
+};
+
+const normalizeAulaData = (aula) => {
+  if (!aula) return aula;
+  const asignacionesNormalizadas = (aula.asignaciones || []).map((asignacion) => {
+    const materia = asignacion.materia || {};
+    const materiaId =
+      materia.id ? String(materia.id) :
+      materia._id ? String(materia._id) :
+      materia.codigo ? String(materia.codigo) :
+      '';
+    const materiaCodigo = materia.codigo || materiaId || '';
+    return {
+      ...asignacion,
+      materia: {
+        ...materia,
+        id: materiaId,
+        codigo: materiaCodigo
+      }
+    };
+  });
+
+  const alumnosNormalizados = (aula.alumnos || []).map((alumno) => ({
+    ...alumno,
+    materiasAsignadas: normalizeMateriasAsignadasData(alumno.materiasAsignadas)
+  }));
+
+  return {
+    ...aula,
+    asignaciones: asignacionesNormalizadas,
+    alumnos: alumnosNormalizados
+  };
+};
+
+const compareAlumnoIds = (alumnoA = {}, alumnoB = {}) => {
+  const collectIds = (alumno) =>
+    [alumno._id, alumno.id, alumno.idU, alumno.cedula]
+      .map((val) => (val !== undefined && val !== null ? String(val) : null))
+      .filter(Boolean);
+  const idsA = collectIds(alumnoA);
+  const idsB = collectIds(alumnoB);
+  return idsA.some((id) => idsB.includes(id));
+};
+
 export default function SidebarPage() {
 
   // Definición de materias por año
@@ -1620,6 +1680,11 @@ export default function SidebarPage() {
   const [registroTituloForm, setRegistroTituloForm] = useState(() => createRegistroTituloFormState());
   const [registroTituloSubmitting, setRegistroTituloSubmitting] = useState(false);
   const registroTituloFileInputRef = useRef(null);
+const [showEditStudentSubjectsModal, setShowEditStudentSubjectsModal] = useState(false);
+const [aulaForSubjectEdit, setAulaForSubjectEdit] = useState(null);
+const [alumnoForSubjectEdit, setAlumnoForSubjectEdit] = useState(null);
+const [materiasAlumnoSubjectEdit, setMateriasAlumnoSubjectEdit] = useState([]);
+const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
   // Estados para inscripción de alumnos
   const [showInscripcionModal, setShowInscripcionModal] = useState(false);
@@ -3558,16 +3623,17 @@ export default function SidebarPage() {
   // Función para cargar las aulas
   const loadAulas = async () => {
     try {
-      const response = await fetch('/api/aulas');
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        console.log('Aulas cargadas:', result.data);
-        console.log('Ejemplo de periodo de un aula:', result.data[0]?.periodo);
-        setAulas(result.data);
-      } else {
-        console.error('Error al cargar aulas:', result.message);
-      }
+    const response = await fetch('/api/aulas');
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      console.log('Aulas cargadas:', result.data);
+      console.log('Ejemplo de periodo de un aula:', result.data[0]?.periodo);
+      const aulasNormalizadas = (result.data || []).map(normalizeAulaData);
+      setAulas(aulasNormalizadas);
+    } else {
+      console.error('Error al cargar aulas:', result.message);
+    }
     } catch (error) {
       console.error('Error al cargar aulas:', error);
     }
@@ -3678,6 +3744,118 @@ export default function SidebarPage() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const openEditStudentSubjectsModal = (aula) => {
+    setAulaForSubjectEdit(normalizeAulaData(aula));
+    setAlumnoForSubjectEdit(null);
+    setMateriasAlumnoSubjectEdit([]);
+    setShowEditStudentSubjectsModal(true);
+  };
+
+  const handleSelectAlumnoForSubjects = (alumno) => {
+    setAlumnoForSubjectEdit(alumno);
+    setMateriasAlumnoSubjectEdit(normalizeMateriasAsignadasData(alumno.materiasAsignadas));
+  };
+
+  const handleMateriaToggleAlumno = (materiaId, isChecked) => {
+    if (!materiaId) return;
+    setMateriasAlumnoSubjectEdit((prev) => {
+      if (isChecked) {
+        if (prev.includes(materiaId)) return prev;
+        return [...prev, materiaId];
+      }
+      return prev.filter((id) => id !== materiaId);
+    });
+  };
+
+  const closeEditStudentSubjectsModal = () => {
+    setShowEditStudentSubjectsModal(false);
+    setAulaForSubjectEdit(null);
+    setAlumnoForSubjectEdit(null);
+    setMateriasAlumnoSubjectEdit([]);
+    setSavingAlumnoMaterias(false);
+  };
+
+  const handleGuardarMateriasAlumno = async () => {
+    if (!aulaForSubjectEdit || !alumnoForSubjectEdit) return;
+    if (materiasAlumnoSubjectEdit.length === 0) {
+      setAlert({
+        title: 'Atención',
+        message: 'Selecciona al menos una materia para el alumno.',
+        icon: 'warning'
+      });
+      return;
+    }
+
+    try {
+      setSavingAlumnoMaterias(true);
+      const estudianteId =
+        alumnoForSubjectEdit._id ||
+        alumnoForSubjectEdit.id ||
+        alumnoForSubjectEdit.idU ||
+        alumnoForSubjectEdit.cedula;
+
+      const response = await fetch(`/api/aulas/${aulaForSubjectEdit._id}/estudiantes`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          estudianteId,
+          materiasAsignadas: materiasAlumnoSubjectEdit
+        })
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo actualizar las materias del alumno.');
+      }
+
+      setAulas((prev) =>
+        prev.map((aula) => {
+          if (aula._id !== aulaForSubjectEdit._id) return aula;
+          const alumnosActualizados = (aula.alumnos || []).map((al) =>
+            compareAlumnoIds(al, alumnoForSubjectEdit)
+              ? { ...al, materiasAsignadas: [...materiasAlumnoSubjectEdit] }
+              : al
+          );
+          return { ...aula, alumnos: alumnosActualizados };
+        })
+      );
+
+      setAulaForSubjectEdit((prev) =>
+        prev
+          ? {
+              ...prev,
+              alumnos: (prev.alumnos || []).map((al) =>
+                compareAlumnoIds(al, alumnoForSubjectEdit)
+                  ? { ...al, materiasAsignadas: [...materiasAlumnoSubjectEdit] }
+                  : al
+              )
+            }
+          : prev
+      );
+
+      setAlumnoForSubjectEdit((prev) =>
+        prev ? { ...prev, materiasAsignadas: [...materiasAlumnoSubjectEdit] } : prev
+      );
+
+      setAlert({
+        title: 'Éxito',
+        message: 'Materias asignadas actualizadas correctamente.',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error al actualizar materias del alumno:', error);
+      setAlert({
+        title: 'Error',
+        message: error.message || 'No se pudo actualizar las materias del alumno.',
+        icon: 'error'
+      });
+    } finally {
+      setSavingAlumnoMaterias(false);
     }
   };
 
@@ -5690,7 +5868,7 @@ export default function SidebarPage() {
         if (response.ok) {
           const result = await response.json();
           if (result.success && result.data) {
-            const aula = result.data;
+            const aula = normalizeAulaData(result.data);
             setAulaSeleccionadaData(aula);
             // Por defecto, seleccionar todas las materias
             if (aula.asignaciones && aula.asignaciones.length > 0) {
@@ -11154,6 +11332,16 @@ export default function SidebarPage() {
                             </button>
                             
                             <button
+                              onClick={() => openEditStudentSubjectsModal(aula)}
+                              className="bg-indigo-600 text-white px-3 py-2 rounded text-sm hover:bg-indigo-700 transition-colors flex items-center justify-center w-full"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                              </svg>
+                              Configurar Materias
+                            </button>
+                            
+                            <button
                               onClick={() => {
                                 setAulaToAvanzar(aula);
                                 setNuevoAnio('');
@@ -11246,6 +11434,118 @@ export default function SidebarPage() {
                               Eliminar
                             </button>
                           </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Modal para configurar materias por alumno */}
+                  {showEditStudentSubjectsModal && aulaForSubjectEdit && (
+                    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+                      <div className="bg-white rounded-lg w-full max-w-5xl max-h-[90vh] overflow-hidden flex flex-col">
+                        <div className="p-6 border-b border-gray-200">
+                          <h3 className="text-xl font-bold">Configurar materias por alumno - {aulaForSubjectEdit.nombre}</h3>
+                          <p className="text-sm text-gray-600 mt-1">
+                            Selecciona un alumno y marca las materias que tendrá disponibles dentro del aula.
+                          </p>
+                        </div>
+                        <div className="flex-1 flex flex-col md:flex-row divide-y md:divide-y-0 md:divide-x overflow-hidden">
+                          <div className="md:w-1/2 p-4 max-h-[60vh] overflow-y-auto">
+                            {aulaForSubjectEdit.alumnos && aulaForSubjectEdit.alumnos.length > 0 ? (
+                              <div className="space-y-2">
+                                {aulaForSubjectEdit.alumnos.map((alumno) => {
+                                  const isActive = alumnoForSubjectEdit && compareAlumnoIds(alumno, alumnoForSubjectEdit);
+                                  return (
+                                    <button
+                                      key={alumno._id || alumno.id || alumno.idU || alumno.cedula}
+                                      onClick={() => handleSelectAlumnoForSubjects(alumno)}
+                                      className={`w-full text-left border rounded-md p-3 transition-colors ${
+                                        isActive ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:bg-gray-50'
+                                      }`}
+                                    >
+                                      <p className="font-semibold text-gray-900">{alumno.nombre} {alumno.apellido}</p>
+                                      <p className="text-xs text-gray-500">Cédula: {alumno.cedula || alumno.idU || 'N/D'}</p>
+                                      <p className="text-xs text-gray-500 mt-1">
+                                        Materias actuales: {alumno.materiasAsignadas?.length || 0}
+                                      </p>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            ) : (
+                              <div className="text-center text-gray-500">
+                                No hay alumnos registrados en esta aula.
+                              </div>
+                            )}
+                          </div>
+                          <div className="md:w-1/2 p-4 max-h-[60vh] overflow-y-auto">
+                            {alumnoForSubjectEdit ? (
+                              <>
+                                <h4 className="font-semibold text-gray-900 mb-2">
+                                  Materias para {alumnoForSubjectEdit.nombre} {alumnoForSubjectEdit.apellido}
+                                </h4>
+                                {aulaForSubjectEdit.asignaciones && aulaForSubjectEdit.asignaciones.length > 0 ? (
+                                  <div className="space-y-2">
+                                    {aulaForSubjectEdit.asignaciones.map((asignacion) => {
+                                      const materia = asignacion.materia || {};
+                                      const materiaId = materia.id || materia.codigo || asignacion._id;
+                                      if (!materiaId) return null;
+                                      const isChecked = materiasAlumnoSubjectEdit.includes(materiaId);
+                                      return (
+                                        <label
+                                          key={materiaId}
+                                          className="flex items-center p-2 border border-gray-200 rounded-md bg-gray-50 hover:bg-blue-50 cursor-pointer text-sm"
+                                        >
+                                          <input
+                                            type="checkbox"
+                                            checked={isChecked}
+                                            onChange={(e) => handleMateriaToggleAlumno(materiaId, e.target.checked)}
+                                            className="h-4 w-4 text-blue-600 border-gray-300 rounded mr-2"
+                                          />
+                                          <span className="text-gray-800">
+                                            {materia.nombre || asignacion.materiaNombre || 'Materia sin nombre'}
+                                            {materia.codigo && (
+                                              <span className="text-xs text-gray-500 ml-2">({materia.codigo})</span>
+                                            )}
+                                          </span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <p className="text-sm text-gray-500">Este aula no tiene asignaciones configuradas.</p>
+                                )}
+                                {materiasAlumnoSubjectEdit.length === 0 && (
+                                  <p className="text-xs text-amber-600 mt-2">
+                                    ⚠️ Selecciona al menos una materia para este estudiante.
+                                  </p>
+                                )}
+                              </>
+                            ) : (
+                              <div className="flex items-center justify-center h-full text-gray-500">
+                                Selecciona un alumno para editar sus materias.
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        <div className="p-4 border-t border-gray-200 flex justify-end gap-4">
+                          <button
+                            onClick={closeEditStudentSubjectsModal}
+                            className="px-4 py-2 text-gray-600 hover:text-gray-800 transition-colors"
+                          >
+                            Cerrar
+                          </button>
+                          <button
+                            onClick={handleGuardarMateriasAlumno}
+                            disabled={
+                              !alumnoForSubjectEdit ||
+                              materiasAlumnoSubjectEdit.length === 0 ||
+                              savingAlumnoMaterias
+                            }
+                            className="px-4 py-2 bg-blue-600 text-white rounded hover:bg-blue-700 transition-colors disabled:bg-gray-300 disabled:text-gray-500"
+                          >
+                            {savingAlumnoMaterias ? 'Guardando...' : 'Guardar cambios'}
+                          </button>
                         </div>
                       </div>
                     </div>

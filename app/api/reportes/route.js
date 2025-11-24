@@ -17,6 +17,24 @@ function convertirNotaAlfabetica(nota) {
   return 'E';
 }
 
+const DEFAULT_TEXT_CALIFICACION = 'NC';
+
+const normalizeMateriasAsignadas = (materias) => {
+  if (!materias) return [];
+  const baseArray = Array.isArray(materias)
+    ? materias
+    : typeof materias === 'object'
+      ? Object.values(materias)
+      : [];
+  return baseArray.map((item) => {
+    if (!item) return '';
+    if (typeof item === 'object') {
+      return String(item.id || item.codigo || item.value || '').trim();
+    }
+    return String(item).trim();
+  }).filter(Boolean);
+};
+
 export async function GET(request) {
   try {
     // Obtener parámetros de la URL
@@ -101,13 +119,22 @@ export async function GET(request) {
         }
         
         // Si el estudiante no tiene materiasAsignadas definidas o tiene array vacío, asume que ve todas (compatibilidad hacia atrás)
-        if (estudiante.materiasAsignadas === undefined || estudiante.materiasAsignadas === null || 
-            (Array.isArray(estudiante.materiasAsignadas) && estudiante.materiasAsignadas.length === 0)) {
+        const materiasAsignadas = normalizeMateriasAsignadas(estudiante.materiasAsignadas);
+        if (!materiasAsignadas.length) {
           return true; // Por defecto para estudiantes antiguos sin el campo o con array vacío, ve todas las materias
         }
         
         // Verificar si la materia está en la lista de materias asignadas del estudiante
-        return estudiante.materiasAsignadas.includes(materia.id);
+        const materiaIdNormalizado = materia?.id ? String(materia.id).trim().toLowerCase() : '';
+        const materiaCodigoNormalizado = materia?.codigo ? String(materia.codigo).trim().toLowerCase() : '';
+
+        return materiasAsignadas.some((matId) => {
+          const normalized = String(matId || '').trim().toLowerCase();
+          return (
+            (materiaIdNormalizado && normalized === materiaIdNormalizado) ||
+            (materiaCodigoNormalizado && normalized === materiaCodigoNormalizado)
+          );
+        });
       };
       
       // Obtener los puntos extras por momento de la asignación
@@ -350,23 +377,23 @@ export async function GET(request) {
         // Si el estudiante tiene restricciones Y NO tiene esta materia asignada, agregar entrada con "AP"
         if (tieneRestricciones && !materiasAsignadas.includes(materiaId)) {
           if (!calificacionExistente) {
-            console.log(`  📝 Agregando materia NO asignada con "AP": ${materiaNombre} (ID: ${materiaId})`);
+            console.log(`  📝 Agregando materia NO asignada con "${DEFAULT_TEXT_CALIFICACION}": ${materiaNombre} (ID: ${materiaId})`);
             calificacionesPorMateria[estudianteId].push({
               materia: materiaNombre,
               materiaId: materiaId,
-              momento1: 'AP',
-              momento2: 'AP',
-              momento3: 'AP',
-              calificacion: 'AP',
+              momento1: DEFAULT_TEXT_CALIFICACION,
+              momento2: DEFAULT_TEXT_CALIFICACION,
+              momento3: DEFAULT_TEXT_CALIFICACION,
+              calificacion: DEFAULT_TEXT_CALIFICACION,
               noAplica: true // Marcar como "No Aplica"
             });
           } else {
-            // Si existe pero el estudiante no tiene la materia asignada, marcar como "AP"
-            console.log(`  📝 Marcando materia existente como "AP": ${materiaNombre} (ID: ${materiaId})`);
-            calificacionExistente.momento1 = 'AP';
-            calificacionExistente.momento2 = 'AP';
-            calificacionExistente.momento3 = 'AP';
-            calificacionExistente.calificacion = 'AP';
+            // Si existe pero el estudiante no tiene la materia asignada, marcar como "NC"
+            console.log(`  📝 Marcando materia existente como "${DEFAULT_TEXT_CALIFICACION}": ${materiaNombre} (ID: ${materiaId})`);
+            calificacionExistente.momento1 = DEFAULT_TEXT_CALIFICACION;
+            calificacionExistente.momento2 = DEFAULT_TEXT_CALIFICACION;
+            calificacionExistente.momento3 = DEFAULT_TEXT_CALIFICACION;
+            calificacionExistente.calificacion = DEFAULT_TEXT_CALIFICACION;
             calificacionExistente.noAplica = true;
           }
         } else {
@@ -810,7 +837,7 @@ export async function GET(request) {
         // Nota 1er Momento (siempre mostrar)
         let nota1 = '';
         if (calificacion.noAplica) {
-          nota1 = 'AP';
+          nota1 = DEFAULT_TEXT_CALIFICACION;
         } else if (calificacion.momento1) {
           nota1 = Math.round(calificacion.momento1).toString();
         }
@@ -825,7 +852,7 @@ export async function GET(request) {
         // Nota 2do Momento (mostrar "-" si el boletín es del 1er momento o no hay nota, "AP" si no aplica)
         let nota2 = '-';
         if (calificacion.noAplica) {
-          nota2 = 'AP';
+          nota2 = DEFAULT_TEXT_CALIFICACION;
         } else if (reporte.momento >= 2 && calificacion.momento2) {
           nota2 = Math.round(calificacion.momento2).toString();
         }
@@ -840,7 +867,7 @@ export async function GET(request) {
         // Nota 3er Momento (mostrar "-" si el boletín es del 1er o 2do momento o no hay nota, "AP" si no aplica)
         let nota3 = '-';
         if (calificacion.noAplica) {
-          nota3 = 'AP';
+          nota3 = DEFAULT_TEXT_CALIFICACION;
         } else if (reporte.momento === 3 && calificacion.momento3) {
           nota3 = Math.round(calificacion.momento3).toString();
         }
@@ -857,8 +884,8 @@ export async function GET(request) {
         let colorNota = negro;
         
         if (calificacion.noAplica) {
-          notaFinal = 'AP';
-        } else if (reporte.momento === 3 && calificacion.calificacion !== undefined && calificacion.calificacion !== 'AP') {
+          notaFinal = DEFAULT_TEXT_CALIFICACION;
+        } else if (reporte.momento === 3 && calificacion.calificacion !== undefined && calificacion.calificacion !== DEFAULT_TEXT_CALIFICACION) {
           notaFinal = Math.round(calificacion.calificacion).toString();
           
           colorNota = calificacion.calificacion < 10 ? rgb(0.8, 0, 0) : verde;

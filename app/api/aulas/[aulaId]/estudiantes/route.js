@@ -4,6 +4,24 @@ import mongoose from 'mongoose';
 import Aula from '../../../../../database/models/Aula';
 import Estudiante from '../../../../../database/models/Estudiante';
 
+const normalizeMateriasAsignadas = (materias) => {
+  if (!materias) return [];
+  const baseArray = Array.isArray(materias)
+    ? materias
+    : typeof materias === 'object'
+      ? Object.values(materias)
+      : [materias];
+  return baseArray
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'object') {
+        return String(item.id || item.codigo || item.value || item._id || '').trim();
+      }
+      return String(item).trim();
+    })
+    .filter(Boolean);
+};
+
 export async function GET(request, { params }) {
   try {
     const { aulaId } = await params;
@@ -94,6 +112,8 @@ export async function POST(request, { params }) {
       }, { status: 404 });
     }
 
+    const materiasNormalizadas = normalizeMateriasAsignadas(materiasAsignadas);
+
     // Preparar el objeto del alumno con sus materias asignadas
     const nuevoAlumno = {
       nombre: estudiante.nombre,
@@ -101,10 +121,7 @@ export async function POST(request, { params }) {
       _id: estudiante._id.toString(),
       cedula: estudiante.idU || estudiante.cedula || '',
       idU: estudiante.idU || estudiante.cedula || '',
-      // SIEMPRE agregar materias asignadas (incluso si está vacío)
-      materiasAsignadas: (materiasAsignadas && Array.isArray(materiasAsignadas) && materiasAsignadas.length > 0) 
-        ? materiasAsignadas 
-        : []
+      materiasAsignadas: materiasNormalizadas
     };
 
     console.log('📝 Guardando estudiante con materias asignadas:', {

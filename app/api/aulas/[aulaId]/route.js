@@ -6,6 +6,24 @@ import dbConnection from '../../../../database/db';
 import Aula from '../../../../database/models/Aula';
 import Profesor from '../../../../database/models/Profesor';
 
+const normalizeMateriasAsignadas = (materias) => {
+  if (!materias) return [];
+  const baseArray = Array.isArray(materias)
+    ? materias
+    : typeof materias === 'object'
+      ? Object.values(materias)
+      : [];
+  return baseArray
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'object') {
+        return String(item.id || item.codigo || item.value || '').trim();
+      }
+      return String(item).trim();
+    })
+    .filter(Boolean);
+};
+
 // GET /api/aulas/[aulaId] - Obtener un aula específica con sus materias y alumnos
 export async function GET(request, { params }) {
   try {
@@ -30,10 +48,27 @@ export async function GET(request, { params }) {
       }, { status: 404 });
     }
 
-    // Asegurarnos de que el aula tenga la estructura correcta
+    const aulaObj = aula.toObject();
+    const alumnosNormalizados = (aulaObj.alumnos || []).map((alumno) => ({
+      ...alumno,
+      materiasAsignadas: normalizeMateriasAsignadas(alumno.materiasAsignadas)
+    }));
+    const asignacionesNormalizadas = (aulaObj.asignaciones || []).map((asignacion) => {
+      const materia = asignacion.materia || {};
+      return {
+        ...asignacion,
+        materia: {
+          ...materia,
+          id: materia.id ? String(materia.id) : materia.id,
+          codigo: materia.codigo || materia.id || ''
+        }
+      };
+    });
+
     const aulaData = {
-      ...aula.toObject(),
-      asignaciones: aula.asignaciones || []
+      ...aulaObj,
+      alumnos: alumnosNormalizados,
+      asignaciones: asignacionesNormalizadas
     };
 
     return NextResponse.json({
