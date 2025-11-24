@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, memo } from 'react';
+import { useState, useEffect, useCallback, useMemo, memo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import confetti from 'canvas-confetti';
@@ -109,6 +109,18 @@ const MESES_REPORTE = [
   'DICIEMBRE'
 ];
 
+const REGISTRO_TITULO_COLEGIO = {
+  codigo: 'P000012200',
+  denominacionEponimo: 'Unidad Educativa Colegio Las Acacias',
+  nombre: 'Unidad Educativa Colegio Las Acacias',
+  direccion: 'Av. Bolívar Norte Calle 25 y 26, Valera',
+  municipio: 'Valera',
+  estado: 'Trujillo',
+  entidadFederal: 'Trujillo',
+  telefono: '0271-2301303',
+  cdcee: 'Unidad Educativa Colegio Las Acacias'
+};
+
 const createEmptyCertificadoForm = () => ({
   tipoEvaluacion: '',
   momento: 'octubre',
@@ -128,6 +140,12 @@ const createEmptyCertificadoForm = () => ({
     mesReporte: '',
     tipoReporte: 'resumen-final'
   }
+});
+
+const createRegistroTituloFormState = () => ({
+  excelArchivo: null,
+  documentoNombre: '',
+  documentoCodigo: ''
 });
 
 export default function SidebarPage() {
@@ -1190,6 +1208,169 @@ export default function SidebarPage() {
     }
   }, []);
 
+  const startTourCertificadoEvaluacion = useCallback(async () => {
+    try {
+      const driverFn = await loadDriver();
+      if (!driverFn) {
+        alert('No fue posible iniciar la guía.');
+        return;
+      }
+
+      const navButton = document.querySelector('#nav-certificado-evaluacion');
+      const isModuleActive = navButton?.classList?.contains('bg-sky-500');
+      if (!isModuleActive && navButton) {
+        navButton.click();
+        await new Promise(resolve => setTimeout(resolve, 400));
+      }
+
+      const resumenOption = document.querySelector('#generar-option-resumen-final');
+      if (resumenOption && !resumenOption.classList.contains('border-blue-600')) {
+        resumenOption.click();
+        await new Promise(resolve => setTimeout(resolve, 300));
+      }
+
+      const stepDefinitions = [
+        {
+          element: '#nav-certificado-evaluacion',
+          popover: {
+            title: '📘 Paso 1: Certificado de Evaluación',
+            description: 'Abre este módulo para cargar o generar los certificados oficiales de Resumen Final, Revisión o Materia Pendiente.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#btn-tour-certificado-evaluacion',
+          popover: {
+            title: '🧭 Paso 2: Guía Interactiva',
+            description: 'Puedes volver a este botón cuando necesites repetir la guía paso a paso dentro del módulo.',
+            side: 'left',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-option-resumen-final',
+          popover: {
+            title: '📑 Paso 3: Elegir Tipo',
+            description: 'Selecciona "Resumen Final" (u otro tipo disponible) para que el formulario muestre los campos correspondientes.',
+            side: 'top',
+            align: 'start'
+          }
+        },
+        {
+          element: '#generar-select-tipo-reporte',
+          popover: {
+            title: '📝 Paso 4: Tipo de Evaluación',
+            description: 'Define si el reporte es Resumen Final, Revisión o Materia Pendiente. El dato viajará en el certificado.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-input-excel-estudiantes',
+          popover: {
+            title: '📂 Paso 5: Excel de Estudiantes',
+            description: 'Adjunta el Excel consolidado con las notas de los estudiantes. Se validará para llenar la colección.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-input-excel-docentes',
+          popover: {
+            title: '👩‍🏫 Paso 6: Excel de Docentes',
+            description: 'Carga el archivo con los docentes asignados. Toda la información adicional se obtendrá de estos dos archivos.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-select-grado',
+          popover: {
+            title: '🎓 Paso 7: Año a Generar',
+            description: 'Selecciona el año escolar del aula (1° a 5°). Es obligatorio para identificar el nivel del certificado.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-input-seccion',
+          popover: {
+            title: '🏷️ Paso 8: Sección',
+            description: 'Indica la sección (por ejemplo A, B o C). Se guardará exactamente como lo escribas.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-input-anio-inicio',
+          popover: {
+            title: '📆 Paso 9: Año Escolar (Inicio)',
+            description: 'Escribe el año inicial del periodo (ejemplo 2024). Solo se permiten números.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-input-anio-fin',
+          popover: {
+            title: '📆 Paso 10: Año Escolar (Final)',
+            description: 'Completa el año final (ejemplo 2025). Se validará que tenga cuatro dígitos.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-select-mes',
+          popover: {
+            title: '🗓️ Paso 11: Mes del Reporte',
+            description: 'Selecciona el mes oficial del reporte. Se usará en la sección de encabezado del certificado.',
+            side: 'right',
+            align: 'center'
+          }
+        },
+        {
+          element: '#generar-btn-submit',
+          popover: {
+            title: '✅ Paso 12: Generar Certificado',
+            description: 'Cuando todos los campos estén completos, presiona este botón para guardar y generar el certificado. El sistema mostrará el estado del proceso.',
+            side: 'top',
+            align: 'center'
+          }
+        }
+      ];
+
+      const steps = stepDefinitions.filter((step) => {
+        if (typeof window === 'undefined') return false;
+        if (typeof step.element === 'string') {
+          return Boolean(document.querySelector(step.element));
+        }
+        return false;
+      });
+
+      if (steps.length === 0) {
+        alert('Por favor, asegúrate de estar en el módulo de Certificado de Evaluación para iniciar la guía.');
+        return;
+      }
+
+      const tour = driverFn({
+        showProgress: true,
+        steps,
+        allowClose: true,
+        overlayOpacity: 0.5,
+        stagePadding: 4,
+        stageRadius: 5,
+        popoverClass: 'driverjs-theme',
+        popoverOffset: 20
+      });
+
+      tour.drive();
+    } catch (error) {
+      console.error('Error al iniciar la guía de certificado de evaluación:', error);
+      alert('No fue posible iniciar la guía.');
+    }
+  }, []);
+
   // Función para iniciar el tour de Gestión de Asistencia
   const startTourAsistencia = useCallback(async () => {
     try {
@@ -1373,9 +1554,7 @@ export default function SidebarPage() {
   const [notesSubTab, setNotesSubTab] = useState('agregar');
   const [notaTipoFormato, setNotaTipoFormato] = useState(FORMATO_EXCEL_DEFAULT);
 
-  const [certificadoEvaluacionTab, setCertificadoEvaluacionTab] = useState('agregar');
   const [certificadoFormState, setCertificadoFormState] = useState(() => ({
-    agregar: createEmptyCertificadoForm(),
     generar: createEmptyCertificadoForm()
   }));
 
@@ -1421,9 +1600,8 @@ export default function SidebarPage() {
     });
   }, [updateCertificadoForm]);
 
-  const certificadoAgregarForm = getCertificadoForm('agregar');
   const certificadoGenerarForm = getCertificadoForm('generar');
-  const certificadoEstadoActual = getCertificadoForm(certificadoEvaluacionTab);
+  const certificadoEstadoActual = certificadoGenerarForm;
   const certificadoEstadoLabel = certificadoEstadoActual.tipoEvaluacion
     ? certificadoEstadoActual.tipoEvaluacion === 'materia-pendiente'
       ? `Materia Pendiente · ${(certificadoEstadoActual.momento || 'octubre').toUpperCase()}`
@@ -1439,6 +1617,9 @@ export default function SidebarPage() {
   const [previewNotasBlob, setPreviewNotasBlob] = useState(null);
   const [previewNotasFileName, setPreviewNotasFileName] = useState('');
   const [resumenFinalUploading, setResumenFinalUploading] = useState(false);
+  const [registroTituloForm, setRegistroTituloForm] = useState(() => createRegistroTituloFormState());
+  const [registroTituloSubmitting, setRegistroTituloSubmitting] = useState(false);
+  const registroTituloFileInputRef = useRef(null);
 
   // Estados para inscripción de alumnos
   const [showInscripcionModal, setShowInscripcionModal] = useState(false);
@@ -1711,32 +1892,6 @@ export default function SidebarPage() {
     a.click();
     window.URL.revokeObjectURL(url);
     setNotification({ type: 'success', message: 'Excel descargado exitosamente' });
-    setTimeout(() => setNotification(null), 3000);
-  };
-
-  const handleRegistrarCertificadoEvaluacion = () => {
-    const form = getCertificadoForm('agregar');
-    const { tipoEvaluacion, momento, formato, estudiante } = form;
-
-    if (!tipoEvaluacion) {
-      setNotification({ type: 'error', message: 'Selecciona el tipo de evaluación antes de registrar.' });
-      setTimeout(() => setNotification(null), 3000);
-      return;
-    }
-
-    if (tipoEvaluacion === 'resumen-final') {
-      procesarResumenFinal(form, 'agregar');
-      return;
-    }
-
-    console.log('Registro de certificado de evaluación:', {
-      tipoEvaluacion,
-      momento: tipoEvaluacion === 'materia-pendiente' ? momento : null,
-      tipoFormato: formato,
-      estudiante
-    });
-
-    setNotification({ type: 'success', message: 'Configuración registrada temporalmente.' });
     setTimeout(() => setNotification(null), 3000);
   };
 
@@ -2060,6 +2215,7 @@ export default function SidebarPage() {
               return (
                 <button
                   key={option.id}
+                  id={getId(`option-${option.id}`)}
                   type="button"
                   onClick={() => handleTipoEvaluacionChange(option.id)}
                   className={`text-left border rounded-lg p-4 transition-all ${
@@ -2088,6 +2244,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Tipo de evaluación</label>
                 <select
+                  id={getId('select-tipo-reporte')}
                   value={resumenFinalData.tipoReporte || 'resumen-final'}
                   onChange={(e) => handleResumenFinalTipoChange(e.target.value)}
                   className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
@@ -2105,6 +2262,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Excel de estudiantes con notas</label>
                 <input
+                  id={getId('input-excel-estudiantes')}
                   type="file"
                   accept=".xls,.xlsx"
                   onChange={(e) => handleResumenFinalFileChange('excelEstudiantes', e)}
@@ -2126,6 +2284,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Excel de docentes</label>
                 <input
+                  id={getId('input-excel-docentes')}
                   type="file"
                   accept=".xls,.xlsx"
                   onChange={(e) => handleResumenFinalFileChange('excelDocentes', e)}
@@ -2149,6 +2308,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año a generar</label>
                 <select
+                  id={getId('select-grado')}
                   value={resumenFinalData.grado}
                   onChange={(e) => handleResumenFinalGradoChange(e.target.value)}
                   className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
@@ -2167,6 +2327,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Sección</label>
                 <input
+                  id={getId('input-seccion')}
                   type="text"
                   value={resumenFinalData.seccion || ''}
                   onChange={(e) => handleResumenFinalSeccionChange(e.target.value)}
@@ -2183,6 +2344,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año escolar (inicio)</label>
                 <input
+                  id={getId('input-anio-inicio')}
                   type="text"
                   value={resumenFinalData.anioEscolarInicio || ''}
                   onChange={(e) => handleResumenFinalAnioChange('anioEscolarInicio', e.target.value)}
@@ -2197,6 +2359,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año escolar (final)</label>
                 <input
+                  id={getId('input-anio-fin')}
                   type="text"
                   value={resumenFinalData.anioEscolarFin || ''}
                   onChange={(e) => handleResumenFinalAnioChange('anioEscolarFin', e.target.value)}
@@ -2211,6 +2374,7 @@ export default function SidebarPage() {
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Mes del reporte</label>
                 <select
+                  id={getId('select-mes')}
                   value={resumenFinalData.mesReporte || ''}
                   onChange={(e) => handleResumenFinalMesChange(e.target.value)}
                   className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
@@ -2269,6 +2433,7 @@ export default function SidebarPage() {
               return (
                 <button
                   key={option.id}
+                  id={getId(`option-${option.id}`)}
                   type="button"
                   onClick={() => handleTipoEvaluacionChange(option.id)}
                   className={`text-left border rounded-lg p-4 transition-all ${
@@ -2300,6 +2465,7 @@ export default function SidebarPage() {
                   return (
                     <button
                       key={option.id}
+                      id={getId(`momento-${option.id}`)}
                       type="button"
                       onClick={() => handleMomentoChange(option.id)}
                       className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
@@ -2787,6 +2953,99 @@ export default function SidebarPage() {
   const [editingProfesorId, setEditingProfesorId] = useState('');
   // Estado para notificaciones
   const [notification, setNotification] = useState(null); // { type: 'success' | 'error', message: string }
+  const registroTituloCamposCompletos = useMemo(() => {
+    const camposTexto = [
+      registroTituloForm.documentoNombre,
+      registroTituloForm.documentoCodigo
+    ];
+
+    const textosListos = camposTexto.every((campo) => Boolean(campo && campo.trim()));
+    return textosListos && Boolean(registroTituloForm.excelArchivo);
+  }, [registroTituloForm]);
+
+  const handleRegistroTituloInput = useCallback((field, value) => {
+    setRegistroTituloForm((prev) => ({ ...prev, [field]: value }));
+  }, []);
+
+  const handleRegistroTituloFileChange = useCallback((event) => {
+    const file = event?.target?.files?.[0] || null;
+    setRegistroTituloForm((prev) => ({ ...prev, excelArchivo: file }));
+  }, []);
+
+  const handleRegistroTituloSubmit = useCallback(async () => {
+    if (!registroTituloCamposCompletos) {
+      setNotification({
+        type: 'error',
+        message: 'Completa todos los campos y adjunta el Excel antes de generar el registro.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      return;
+    }
+
+    try {
+      setRegistroTituloSubmitting(true);
+      const formData = new FormData();
+      formData.append('excel', registroTituloForm.excelArchivo);
+      formData.append('payload', JSON.stringify({
+        documentoNombre: registroTituloForm.documentoNombre.trim(),
+        documentoCodigo: registroTituloForm.documentoCodigo.trim(),
+        colegio: REGISTRO_TITULO_COLEGIO
+      }));
+
+      const response = await fetch('/api/registro-titulo', {
+        method: 'POST',
+        body: formData
+      });
+
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data?.message || 'No se pudo procesar el registro de título.');
+      }
+
+      if (data?.excelBase64 && typeof window !== 'undefined') {
+        try {
+          const byteCharacters = atob(data.excelBase64);
+          const byteNumbers = new Array(byteCharacters.length);
+          for (let i = 0; i < byteCharacters.length; i++) {
+            byteNumbers[i] = byteCharacters.charCodeAt(i);
+          }
+          const byteArray = new Uint8Array(byteNumbers);
+          const blob = new Blob([byteArray], {
+            type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+          });
+          const url = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = data.fileName || 'Registro_Titulo.xlsx';
+          document.body.appendChild(link);
+          link.click();
+          link.remove();
+          window.URL.revokeObjectURL(url);
+        } catch (downloadError) {
+          console.warn('No se pudo descargar el archivo generado:', downloadError);
+        }
+      }
+
+      setNotification({
+        type: 'success',
+        message: data?.message || 'Registro de título recibido correctamente.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+      setRegistroTituloForm(createRegistroTituloFormState());
+      if (registroTituloFileInputRef.current) {
+        registroTituloFileInputRef.current.value = '';
+      }
+    } catch (error) {
+      console.error('Error al registrar título:', error);
+      setNotification({
+        type: 'error',
+        message: error.message || 'Error al registrar el título.'
+      });
+      setTimeout(() => setNotification(null), 4000);
+    } finally {
+      setRegistroTituloSubmitting(false);
+    }
+  }, [registroTituloCamposCompletos, registroTituloForm, setNotification]);
   
   // Efecto para cerrar el modal al cargar la página
   useEffect(() => {
@@ -9202,6 +9461,18 @@ export default function SidebarPage() {
                       {!sidebarCollapsed && <span className="ml-3 font-medium">Certificado de Evaluación</span>}
                     </button>
                   </li>
+                  <li>
+                    <button
+                      id="nav-registro-titulo"
+                      className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'registroTitulo' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
+                      onClick={() => setActiveTab('registroTitulo')}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v8m4-4H8m11 8H5a2 2 0 01-2-2V6a2 2 0 012-2h9l5 5v11a2 2 0 01-2 2z" />
+                      </svg>
+                      {!sidebarCollapsed && <span className="ml-3 font-medium">Registro de Título</span>}
+                    </button>
+                  </li>
                   {/* Planilla oculta del sidebar */}
                 </>
               )}
@@ -10246,41 +10517,24 @@ export default function SidebarPage() {
                 Administra certificados para Final, Revisión o Materia Pendiente. Primero selecciona el tipo de evaluación y luego completa los datos correspondientes.
               </p>
             </div>
-            <div className="flex items-center gap-2">
-              <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Estado</span>
-              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
-                {certificadoEstadoLabel}
-              </span>
+            <div className="flex items-center gap-3 flex-wrap justify-end">
+              <button
+                id="btn-tour-certificado-evaluacion"
+                onClick={startTourCertificadoEvaluacion}
+                className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+              >
+                Guía
+              </button>
+              <div className="flex items-center gap-2">
+                <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Estado</span>
+                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+                  {certificadoEstadoLabel}
+                </span>
+              </div>
             </div>
           </div>
 
-          <div className="flex gap-2">
-            <button
-              className={`px-4 py-2 rounded ${certificadoEvaluacionTab === 'agregar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              onClick={() => setCertificadoEvaluacionTab('agregar')}
-            >
-              Agregar
-            </button>
-            <button
-              className={`px-4 py-2 rounded ${certificadoEvaluacionTab === 'generar' ? 'bg-blue-600 text-white' : 'bg-gray-100 text-gray-700 hover:bg-gray-200'}`}
-              onClick={() => setCertificadoEvaluacionTab('generar')}
-            >
-              Generar
-            </button>
-          </div>
-
-          {certificadoEvaluacionTab === 'agregar' && renderCertificadoEvaluacionForm({
-            tabKey: 'agregar',
-            formState: certificadoAgregarForm,
-            showHelper: true,
-            submitLabel: certificadoAgregarForm.tipoEvaluacion
-              ? `Guardar (${evaluacionLabelMapGlobal[certificadoAgregarForm.tipoEvaluacion]})`
-              : 'Guardar configuración',
-            onSubmit: handleRegistrarCertificadoEvaluacion,
-            resumenFinalUploading
-          })}
-
-          {certificadoEvaluacionTab === 'generar' && renderCertificadoEvaluacionForm({
+          {renderCertificadoEvaluacionForm({
             tabKey: 'generar',
             formState: certificadoGenerarForm,
             showHelper: true,
@@ -10290,6 +10544,131 @@ export default function SidebarPage() {
             onSubmit: handleGenerarCertificadoEvaluacion,
             resumenFinalUploading
           })}
+        </div>
+      )}
+
+      {activeTab === 'registroTitulo' && (
+        <div className="bg-white rounded-lg shadow-md p-6 space-y-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div>
+              <h2 className="text-2xl font-bold text-gray-800">Registro de Título</h2>
+              <p className="text-sm text-gray-600 mt-1">
+                Carga el Excel con los datos del estudiante y completa los responsables institucionales. Los datos del colegio se rellenan automáticamente.
+              </p>
+            </div>
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-100 text-emerald-700 text-sm font-medium">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+              Datos del Plantel listos
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+            <div className="space-y-6 xl:col-span-2">
+              <div className="border border-dashed border-gray-300 rounded-lg p-4">
+                <h3 className="font-semibold text-gray-800 mb-2">Archivo Excel del alumno</h3>
+                <p className="text-sm text-gray-500 mb-3">Selecciona el formato proporcionado por el Ministerio con los datos del estudiante.</p>
+                <input
+                  ref={registroTituloFileInputRef}
+                  type="file"
+                  accept=".xls,.xlsx"
+                  onChange={handleRegistroTituloFileChange}
+                  className="block w-full text-sm text-gray-700 border border-gray-300 rounded-md cursor-pointer focus:outline-none focus:ring-2 focus:ring-blue-400 focus:border-blue-400 file:mr-4 file:py-2 file:px-4 file:rounded file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+                />
+                {registroTituloForm.excelArchivo && (
+                  <div className="mt-3 text-sm text-gray-700 bg-blue-50 border border-blue-100 rounded px-3 py-2 flex items-center justify-between">
+                    <span className="truncate">{registroTituloForm.excelArchivo.name}</span>
+                    <span className="text-xs text-gray-500 ml-3">
+                      {(registroTituloForm.excelArchivo.size / 1024).toFixed(1)} KB
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre del documento</label>
+                  <input
+                    id="registro-documento-nombre"
+                    className="border rounded p-2 w-full"
+                    value={registroTituloForm.documentoNombre}
+                    onChange={(e) => handleRegistroTituloInput('documentoNombre', e.target.value)}
+                    placeholder="Ej: Registro de Título Bachiller"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Código del documento</label>
+                  <input
+                    id="registro-documento-codigo"
+                    className="border rounded p-2 w-full uppercase"
+                    value={registroTituloForm.documentoCodigo}
+                    onChange={(e) => handleRegistroTituloInput('documentoCodigo', e.target.value.toUpperCase())}
+                    placeholder="Ej: RT-2025-01"
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <button
+                  id="btn-registro-titulo-generar"
+                  onClick={handleRegistroTituloSubmit}
+                  disabled={!registroTituloCamposCompletos || registroTituloSubmitting}
+                  className={`px-5 py-3 rounded-md font-semibold shadow-sm flex items-center gap-2 ${
+                    !registroTituloCamposCompletos || registroTituloSubmitting
+                      ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                      : 'bg-blue-600 text-white hover:bg-blue-700 transition-colors'
+                  }`}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  {registroTituloSubmitting ? 'Procesando...' : 'Generar registro'}
+                </button>
+              </div>
+            </div>
+
+            <div className="bg-blue-50 border border-blue-100 rounded-lg p-5 space-y-4">
+              <h3 className="text-lg font-semibold text-blue-900">Datos del Colegio</h3>
+              <p className="text-sm text-blue-800">Estos campos se incluyen automáticamente en el documento.</p>
+              <div className="space-y-3 text-sm text-blue-900">
+                <div>
+                  <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Código de la institución</span>
+                  <span>{REGISTRO_TITULO_COLEGIO.codigo}</span>
+                </div>
+                <div>
+                  <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Denominación</span>
+                  <span>{REGISTRO_TITULO_COLEGIO.nombre}</span>
+                </div>
+                <div>
+                  <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Dirección</span>
+                  <span>{REGISTRO_TITULO_COLEGIO.direccion}</span>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Municipio</span>
+                    <span>{REGISTRO_TITULO_COLEGIO.municipio}</span>
+                  </div>
+                  <div>
+                    <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Estado</span>
+                    <span>{REGISTRO_TITULO_COLEGIO.estado}</span>
+                  </div>
+                </div>
+                <div>
+                  <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">Teléfono</span>
+                  <span>{REGISTRO_TITULO_COLEGIO.telefono}</span>
+                </div>
+                <div>
+                  <span className="font-semibold block text-xs text-blue-700 uppercase tracking-wide">CDCEE</span>
+                  <span>{REGISTRO_TITULO_COLEGIO.cdcee}</span>
+                </div>
+              </div>
+              <div className="p-3 bg-white border border-blue-100 rounded-md text-sm text-blue-800">
+                <p className="font-semibold">Consejo:</p>
+                <p>Verifica que los nombres de los responsables coincidan exactamente con los designados en la institución y el Ministerio.</p>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 
@@ -10422,6 +10801,7 @@ export default function SidebarPage() {
                     {activeTab === 'alumnos' && 'Gestión de Alumnos'}
                     {activeTab === 'materias' && 'Gestión de Materias'}
                     {activeTab === 'asignaciones' && 'Asignaciones y Calificaciones'}
+                    {activeTab === 'registroTitulo' && 'Registro de Título'}
                   </>
                 )}
               </h1>
