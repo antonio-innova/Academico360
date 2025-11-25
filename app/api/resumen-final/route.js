@@ -990,7 +990,13 @@ export async function POST(request) {
             subjectColumns.forEach(({ col, keys }) => {
               const nota = getNotaByMateria(est, keys);
               const valorFormateado = formatLetterGradeIfNeeded(nota, keys);
-              setCellValue(sheet, col, currentRow, valorFormateado, { alignLeft: true });
+              const displayValue =
+                valorFormateado === undefined ||
+                valorFormateado === null ||
+                valorFormateado === ''
+                  ? '***'
+                  : valorFormateado;
+              setCellValue(sheet, col, currentRow, displayValue, { alignLeft: true });
             });
             
             // Para 4º año, limpiar la columna BE que está entre BD y BF para evitar errores
