@@ -6293,9 +6293,17 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       });
       
       if (indiceAsignacionExistente >= 0) {
-        // Actualizar asignación existente
-        asignacionesActuales[indiceAsignacionExistente] = nuevaAsignacion;
-        console.log('Actualizando asignación existente en índice:', indiceAsignacionExistente);
+        // Actualizar solo el profesor, manteniendo todas las actividades y datos existentes
+        const asignacionExistente = asignacionesActuales[indiceAsignacionExistente];
+        asignacionesActuales[indiceAsignacionExistente] = {
+          ...asignacionExistente,
+          profesor: {
+            nombre: profesor.nombre || '',
+            apellido: profesor.apellido || ''
+          }
+        };
+        console.log('Actualizando solo el profesor de la asignación existente en índice:', indiceAsignacionExistente);
+        console.log('Actividades mantenidas:', asignacionesActuales[indiceAsignacionExistente].actividades?.length || 0);
       } else {
         // Añadir nueva asignación
         asignacionesActuales.push(nuevaAsignacion);
