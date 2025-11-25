@@ -54,28 +54,78 @@ export async function GET(request, { params }) {
 
       console.log('📋 Profesores encontrados en BD:', profesoresSeleccionados.length);
       
-      // Crear un mapa para mantener el orden
       const profesoresMap = new Map(
         profesoresSeleccionados.map(p => [p._id.toString(), p])
       );
+      const normalizarTexto = (texto = '') =>
+        texto.toString().trim().toLowerCase().replace(/\s+/g, ' ');
+      const profesoresNombreMap = new Map();
+      profesoresSeleccionados.forEach((profesor) => {
+        const id = profesor._id?.toString();
+        const cedula = (profesor.idU || profesor.cedula || '').toString();
+        const nombreCompleto = normalizarTexto(`${profesor.nombre || ''} ${profesor.apellido || ''}`);
+        if (id) {
+          if (cedula) profesoresNombreMap.set(cedula, id);
+          if (nombreCompleto) profesoresNombreMap.set(nombreCompleto, id);
+        }
+      });
+      const resolverProfesorId = (asignacion) => {
+        if (!asignacion) return null;
+        const directId =
+          asignacion.profesorId ||
+          asignacion.profesor?.id ||
+          asignacion.profesor?._id ||
+          asignacion.profesor?.profesorId;
+        if (directId) return directId.toString();
+        const cedula =
+          asignacion.profesor?.idU ||
+          asignacion.profesor?.cedula ||
+          asignacion.profesorCedula;
+        if (cedula) {
+          const key = cedula.toString();
+          if (profesoresNombreMap.has(key)) return profesoresNombreMap.get(key);
+        }
+        const nombreCompleto = normalizarTexto(
+          asignacion.profesorNombre ||
+            `${asignacion.profesor?.nombre || ''} ${asignacion.profesor?.apellido || ''}`
+        );
+        if (nombreCompleto && profesoresNombreMap.has(nombreCompleto)) {
+          return profesoresNombreMap.get(nombreCompleto);
+        }
+        return null;
+      };
       
-      // Construir las filas en el orden especificado
+      const asignaciones = Array.isArray(aula.asignaciones) ? aula.asignaciones : [];
+      const ocurrenciasPorProfesor = asignaciones.reduce((acc, asignacion) => {
+        const profesorId = resolverProfesorId(asignacion);
+        if (!profesorId) return acc;
+        acc[profesorId] = (acc[profesorId] || 0) + 1;
+        return acc;
+      }, {});
+      
+      // Construir las filas en el orden especificado manteniendo repeticiones
       selectedOrder.forEach((id, index) => {
         const profesor = profesoresMap.get(id);
-        if (profesor) {
-          console.log(`✅ #${index + 1} Match encontrado:`, {
-            id: profesor._id.toString(),
-            nombre: profesor.nombre,
-            apellido: profesor.apellido,
-            cedula: profesor.idU || profesor.cedula
-          });
+        if (!profesor) {
+          console.log(`❌ No se encontró profesor con ID: ${id}`);
+          return;
+        }
+        
+        const repeticiones = Math.max(ocurrenciasPorProfesor[id] || 1, 1);
+        console.log(`✅ #${index + 1} Match encontrado:`, {
+          id: profesor._id.toString(),
+          nombre: profesor.nombre,
+          apellido: profesor.apellido,
+          cedula: profesor.idU || profesor.cedula,
+          repeticiones
+        });
+        
+        for (let i = 0; i < repeticiones; i += 1) {
           filasOrdenadas.push({
             Nombre: formatearNombrePropio(profesor.nombre || ''),
             Apellido: formatearNombrePropio(profesor.apellido || ''),
             'Cédula': profesor.idU || profesor.cedula || 'N/D'
           });
-        } else {
-          console.log(`❌ No se encontró profesor con ID: ${id}`);
         }
       });
       
@@ -90,8 +140,8 @@ export async function GET(request, { params }) {
       const asignacionesOrdenadas = asignaciones
         .filter(asig => asig.materia && asig.profesorId)
         .sort((a, b) => {
-          const materiaA = (a.materia || '').toLowerCase();
-          const materiaB = (b.materia || '').toLowerCase();
+          const materiaA = (a.materia?.nombre || '').toLowerCase();
+          const materiaB = (b.materia?.nombre || '').toLowerCase();
           return materiaA.localeCompare(materiaB);
         });
       

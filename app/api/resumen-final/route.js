@@ -131,13 +131,22 @@ const parseNotaNumber = (valor) => {
   return Number.isFinite(parsed) ? parsed : null;
 };
 
+const TIPO_EVALUACION_LABELS = {
+  'resumen-final': 'Final',
+  revision: 'Revisión',
+  'materia-pendiente': 'Área Pendiente'
+};
+
 export async function POST(request) {
   try {
     await connectDB();
     const XLSX = await import('xlsx');
 
     const formData = await request.formData();
-    const tipoEvaluacion = (formData.get('tipoEvaluacion') || 'resumen-final').toLowerCase();
+    const tipoEvaluacionRaw = formData.get('tipoEvaluacion') || 'resumen-final';
+    const tipoEvaluacion = tipoEvaluacionRaw.toLowerCase();
+    const tipoEvaluacionLabel = TIPO_EVALUACION_LABELS[tipoEvaluacion] || 'Final';
+    console.log(`[ResumenFinal] Tipo de evaluación recibido: "${tipoEvaluacionRaw}" -> normalizado: "${tipoEvaluacion}" -> label: "${tipoEvaluacionLabel}"`);
     const tiposPermitidos = ['resumen-final', 'revision', 'materia-pendiente'];
     if (!tiposPermitidos.includes(tipoEvaluacion)) {
       return NextResponse.json(
@@ -532,7 +541,8 @@ export async function POST(request) {
         const SUMMARY_ROWS = {
           inscritos: 52,
           aprobados: 54,
-          reprobados: 55
+          reprobados: 55,
+          nocursantes: 56
         };
         const TEACHER_NAME_COLUMN = formatoSeleccionado.teacherNameColumn || 'Z';
         const TEACHER_ID_COLUMN = formatoSeleccionado.teacherIdColumn || 'AR';
@@ -592,25 +602,148 @@ export async function POST(request) {
             .normalize('NFD')
             .replace(/[\u0300-\u036f]/g, '');
 
+        const LETTER_GRADE_SCALE = [
+          { min: 19, letter: 'A' }, // 19-20
+          { min: 17, letter: 'B' }, // 17-18
+          { min: 15, letter: 'C' }, // 15-16
+          { min: 10, letter: 'D' }, // 10-14
+          { min: 1, letter: 'E' },  // 1-9
+          { min: 0, letter: 'F' }   // 0 o vacío explícito
+        ];
+
+        const LETTER_GRADE_VALUES = new Set(['A', 'B', 'C', 'D', 'E', 'F']);
+
+        const shouldUseLetterGradeForKeys = (keys = []) => {
+          return keys
+            .map((key) => normalize(key))
+            .some(
+              (key) =>
+                key.includes('orientacion') ||
+                key.includes('convivencia') ||
+                key.includes('participacion') ||
+                key.includes('grupo')
+            );
+        };
+
+        const formatLetterGradeIfNeeded = (valor, keys = []) => {
+          if (!shouldUseLetterGradeForKeys(keys)) {
+            return valor;
+          }
+          const upper = sanitizeString(valor).toUpperCase();
+          if (!upper) return '';
+          if (upper === 'NC' || LETTER_GRADE_VALUES.has(upper)) {
+            return upper;
+          }
+          const numeric = parseNotaNumber(valor);
+          if (numeric === null) {
+            return upper;
+          }
+          const scale = LETTER_GRADE_SCALE.find((item) => numeric >= item.min) || LETTER_GRADE_SCALE[LETTER_GRADE_SCALE.length - 1];
+          return scale.letter;
+        };
+
+        const matchesMateriaKey = (materiaNorm, key) => {
+          if (!materiaNorm || !key) return false;
+          const materiaClean = materiaNorm.replace(/\s+/g, ' ').trim();
+          const keyClean = key.replace(/\s+/g, ' ').trim();
+
+          // Evitar confundir Física (ciencia) con Educación Física
+          if (keyClean === 'fisica' && materiaClean.includes('educacion')) {
+            return false;
+          }
+
+          if (keyClean === 'educacion fisica' && materiaClean === 'fisica') {
+            return false;
+          }
+
+          return materiaClean === keyClean || materiaClean.includes(keyClean);
+        };
+
         const getNotaByMateria = (est, keys) => {
           const normalizedKeys = keys.map(normalize);
+          const sanitizeNotaValor = (valor) => {
+            if (valor === undefined || valor === null) return '';
+            return String(valor).trim();
+          };
+
           if (Array.isArray(est.notas)) {
-            const nota = est.notas.find((registro) => {
+            const matchingNotas = est.notas.filter((registro) => {
               const materiaNorm = normalize(registro.materia || '');
-              return normalizedKeys.some((k) => materiaNorm.includes(k));
+              return normalizedKeys.some((k) => matchesMateriaKey(materiaNorm, k));
             });
-            if (nota && nota.valor !== undefined && nota.valor !== null && nota.valor !== '') {
-              return nota.valor;
+
+            if (!matchingNotas.length) {
+              console.log('[ResumenFinal] Sin coincidencias en notas procesadas', {
+                materiaBuscada: keys,
+                materiasDisponibles: est.notas.map((n) => n.materia)
+              });
+            }
+
+            if (matchingNotas.length) {
+              const preferedOrder = ['DEF', '3M', '2M', '1M', ''];
+              for (const momento of preferedOrder) {
+                const nota = matchingNotas.find((registro) => {
+                  return sanitizeString(registro.momento || '').toUpperCase() === momento;
+                });
+                if (!nota) continue;
+                const valor = sanitizeNotaValor(nota.valor);
+                if (!valor) continue;
+                if (valor.toUpperCase() === 'NC') {
+                  // Guardar para posible retorno si no encontramos valor numérico
+                  continue;
+                }
+                return valor;
+              }
+
+              // Si no hubo valores numéricos, revisar si alguna nota es NC
+              const notaNC = matchingNotas.find(
+                (registro) => sanitizeNotaValor(registro.valor).toUpperCase() === 'NC'
+              );
+              if (notaNC) {
+                console.log('[ResumenFinal] Nota NC encontrada en notas procesadas', {
+                  materia: matchingNotas[0]?.materia,
+                  registros: matchingNotas.map((n) => ({ momento: n.momento, valor: n.valor }))
+                });
+                return 'NC';
+              }
             }
           }
 
           const rawEntries = Object.entries(est.raw || {});
-          for (const [key, value] of rawEntries) {
+          const preferedRawOrder = ['def', '3m', '2m', '1m'];
+          const rawMatches = rawEntries.filter(([key]) => {
             const keyNorm = normalize(key);
-            if (normalizedKeys.some((k) => keyNorm.includes(k))) {
-              if (value !== undefined && value !== null && value !== '') {
-                return value;
+            return normalizedKeys.some((k) => matchesMateriaKey(keyNorm, k));
+          });
+
+          if (!rawMatches.length) {
+            console.log('[ResumenFinal] Sin coincidencias en raw para materia', {
+              materiaBuscada: keys,
+              headers: Object.keys(est.raw || {})
+            });
+          }
+
+          if (rawMatches.length) {
+            for (const prioridad of preferedRawOrder) {
+              const match = rawMatches.find(([key]) => key.toLowerCase().includes(prioridad));
+              if (!match) continue;
+              const valor = sanitizeNotaValor(match[1]);
+              if (!valor) continue;
+              if (valor.toUpperCase() === 'NC') {
+                continue;
               }
+              return valor;
+            }
+
+            const rawNC = rawMatches.find(
+              ([, value]) => sanitizeNotaValor(value).toUpperCase() === 'NC'
+            );
+            if (rawNC) {
+              console.log('[ResumenFinal] Nota NC encontrada en raw del Excel', {
+                key: rawNC[0],
+                valor: rawNC[1]
+              });
+              return 'NC';
             }
           }
           return '';
@@ -681,20 +814,39 @@ export async function POST(request) {
           cedulaCell.alignment = undefined;
         };
 
-        const fillAcademicInfo = (sheet) => {
+        const fillAcademicInfo = (sheet, evaluacionLabel) => {
           const periodo = `${academicInfo.inicio}-${academicInfo.fin}`;
           setCellValue(sheet, 'BF', 3, periodo, {
             alignLeft: true,
             font: { name: 'Arial', size: 9, bold: true }
           });
-          const mesAnio = `${academicInfo.mes}-${academicInfo.fin}`;
-          setCellValue(sheet, 'BM', 4, mesAnio, { alignLeft: true });
+          
+          // NO escribir nada en BM4 (fila 4, columna BM debe permanecer vacía)
+          
+          // Escribir el tipo de evaluación en BF4
+          const tipoEvaluacionFinal = evaluacionLabel || 'Final';
+          console.log(`[ResumenFinal] Escribiendo tipo de evaluación en BF4: "${tipoEvaluacionFinal}"`);
+          const cellBF4 = sheet.getCell('BF4');
+          cellBF4.value = tipoEvaluacionFinal;
+          cellBF4.font = { name: 'Arial', size: 9, bold: true };
+          cellBF4.alignment = { horizontal: 'left', vertical: 'middle' };
+
+          // Escribir Mes - Año en BN4 en mayúsculas
+          const mesTexto = sanitizeString(academicInfo.mes).toUpperCase();
+          const anioTexto = sanitizeString(academicInfo.fin).toUpperCase();
+          if (mesTexto || anioTexto) {
+            const mesAnio = [mesTexto, anioTexto].filter(Boolean).join(' - ');
+            setCellValue(sheet, 'BN', 4, mesAnio, {
+              alignLeft: true,
+              font: { name: 'Arial', size: 9, bold: true }
+            });
+          }
         };
 
         const createEmptySubjectStats = () => {
           const stats = {};
           subjectColumns.forEach(({ col }) => {
-            stats[col] = { aprobados: 0, reprobados: 0 };
+            stats[col] = { aprobados: 0, reprobados: 0, nocursantes: 0 };
           });
           return stats;
         };
@@ -704,6 +856,14 @@ export async function POST(request) {
           students.forEach((est) => {
             subjectColumns.forEach(({ col, keys }) => {
               const nota = getNotaByMateria(est, keys);
+              
+              // Detectar si la nota es "NC" (No Calificado)
+              const notaStr = String(nota || '').trim().toUpperCase();
+              if (notaStr === 'NC') {
+                stats[col].nocursantes += 1;
+                return;
+              }
+              
               const notaNumber = parseNotaNumber(nota);
               if (notaNumber === null) return;
               if (notaNumber >= 10) {
@@ -724,7 +884,7 @@ export async function POST(request) {
           
           // Para 4º año, limpiar las columnas BE y BF de errores "#"
           if (grado === '4') {
-            [SUMMARY_ROWS.inscritos, SUMMARY_ROWS.aprobados, SUMMARY_ROWS.reprobados].forEach((rowNum) => {
+            [SUMMARY_ROWS.inscritos, SUMMARY_ROWS.aprobados, SUMMARY_ROWS.reprobados, SUMMARY_ROWS.nocursantes].forEach((rowNum) => {
               // Limpiar BE
               const cellBE = sheet.getCell(`BE${rowNum}`);
               if (cellBE.value === '#' || cellBE.value === '#¡REF!' || cellBE.value === '#¡VALOR!' || String(cellBE.value || '').includes('#')) {
@@ -745,7 +905,7 @@ export async function POST(request) {
           }
           
           subjectColumns.forEach(({ col }) => {
-            const materiaStats = summaryData.porMateria[col] || { aprobados: 0, reprobados: 0 };
+            const materiaStats = summaryData.porMateria[col] || { aprobados: 0, reprobados: 0, nocursantes: 0 };
             setCellValue(sheet, col, SUMMARY_ROWS.inscritos, summaryData.totalEstudiantes, {
               alignment: { horizontal: 'center', vertical: 'middle' }
             });
@@ -753,6 +913,9 @@ export async function POST(request) {
               alignment: { horizontal: 'center', vertical: 'middle' }
             });
             setCellValue(sheet, col, SUMMARY_ROWS.reprobados, materiaStats.reprobados, {
+              alignment: { horizontal: 'center', vertical: 'middle' }
+            });
+            setCellValue(sheet, col, SUMMARY_ROWS.nocursantes, materiaStats.nocursantes, {
               alignment: { horizontal: 'center', vertical: 'middle' }
             });
           });
@@ -826,7 +989,8 @@ export async function POST(request) {
 
             subjectColumns.forEach(({ col, keys }) => {
               const nota = getNotaByMateria(est, keys);
-              setCellValue(sheet, col, currentRow, nota, { alignLeft: true });
+              const valorFormateado = formatLetterGradeIfNeeded(nota, keys);
+              setCellValue(sheet, col, currentRow, valorFormateado, { alignLeft: true });
             });
             
             // Para 4º año, limpiar la columna BE que está entre BD y BF para evitar errores
@@ -910,7 +1074,7 @@ export async function POST(request) {
           }
 
           fillInstitutionData(sheet);
-          fillAcademicInfo(sheet);
+          fillAcademicInfo(sheet, tipoEvaluacionLabel);
           fillRemisionSection(sheet);
         };
 

@@ -1962,25 +1962,9 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
   const handleGenerarCertificadoEvaluacion = () => {
     const form = getCertificadoForm('generar');
-    const { tipoEvaluacion, momento, formato, estudiante } = form;
-
-    if (!tipoEvaluacion) {
-      setNotification({ type: 'error', message: 'Selecciona el tipo de evaluación antes de generar.' });
-      setTimeout(() => setNotification(null), 3000);
-      return;
-    }
-
-    if (tipoEvaluacion === 'resumen-final') {
+    // Siempre usar el procesamiento de Resumen Final, sin importar el tipo de evaluación
+    // El tipo de evaluación solo afecta el valor que se escribe en BF4 del Excel
       procesarResumenFinal(form, 'generar');
-      return;
-    }
-
-    handleGenerarExcelNotas({
-      estudiante,
-      tipoFormato: formato,
-      tipoEvaluacion,
-      materiaPendienteMomento: tipoEvaluacion === 'materia-pendiente' ? momento : null
-    });
   };
 
   const procesarResumenFinal = async (form, contexto) => {
@@ -1990,7 +1974,13 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     const anioInicio = (resumenFinalData.anioEscolarInicio || '').trim();
     const anioFin = (resumenFinalData.anioEscolarFin || '').trim();
     const mesSeleccionado = (resumenFinalData.mesReporte || '').trim();
-    const tipoReporteSeleccionado = (resumenFinalData.tipoReporte || 'resumen-final').trim();
+    // Priorizar el valor del select (tipoReporte) ya que es el que el usuario ve y cambia
+    const tipoEvaluacionSeleccionado = (resumenFinalData.tipoReporte || form?.tipoEvaluacion || 'resumen-final').trim();
+    console.log('[Frontend] Tipo de evaluación a enviar:', {
+      tipoReporte: resumenFinalData.tipoReporte,
+      tipoEvaluacion: form?.tipoEvaluacion,
+      seleccionado: tipoEvaluacionSeleccionado
+    });
     const archivos = resumenFinalData;
     const excelEstudiantes = archivos.excelEstudiantes;
     const excelDocentes = archivos.excelDocentes;
@@ -2031,7 +2021,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       return;
     }
 
-    if (!tipoReporteSeleccionado) {
+    if (!tipoEvaluacionSeleccionado) {
       setNotification({
         type: 'error',
         message: 'Selecciona el tipo de evaluación antes de generar el resumen final.'
@@ -2054,7 +2044,11 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       setNotification({ type: 'info', message: 'Procesando resumen final...' });
 
       const formData = new FormData();
-      formData.append('tipoEvaluacion', 'resumen-final');
+      // Usar el tipo de evaluación seleccionado (revision, materia-pendiente, o resumen-final)
+      console.log('[Frontend] Tipo de evaluación seleccionado antes de enviar:', tipoEvaluacionSeleccionado);
+      console.log('[Frontend] form?.tipoEvaluacion:', form?.tipoEvaluacion);
+      console.log('[Frontend] resumenFinalData.tipoReporte:', resumenFinalData.tipoReporte);
+      formData.append('tipoEvaluacion', tipoEvaluacionSeleccionado);
       formData.append('formato', form?.formato || '');
       formData.append('momento', form?.momento || '');
       formData.append('contexto', contexto);
@@ -2070,7 +2064,6 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       formData.append('anioEscolarInicio', anioInicio);
       formData.append('anioEscolarFin', anioFin);
       formData.append('mesReporte', mesSeleccionado);
-      formData.append('tipoEvaluacion', tipoReporteSeleccionado);
       formData.append('excelEstudiantes', excelEstudiantes);
       formData.append('excelDocentes', excelDocentes);
 
@@ -2157,7 +2150,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
         mesReporte: '',
         tipoReporte: 'resumen-final'
       };
-    const requiereResumenFinal = tipoEvaluacion === 'resumen-final';
+    // Siempre validar los campos de Resumen Final ya que siempre mostramos esa interfaz
     const resumenFinalListo = resumenFinalData.excelEstudiantes instanceof File && resumenFinalData.excelDocentes instanceof File;
     const resumenGradoValido = Boolean(resumenFinalData.grado);
     const resumenSeccionValida = Boolean(resumenFinalData.seccion && resumenFinalData.seccion.trim());
@@ -2165,19 +2158,13 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     const resumenAnioFinValido = Boolean(resumenFinalData.anioEscolarFin);
     const resumenMesValido = Boolean(resumenFinalData.mesReporte);
     const resumenTipoValido = Boolean(resumenFinalData.tipoReporte);
-    const labelEvaluacion = evaluacionLabelMapGlobal[tipoEvaluacion] || 'Selecciona un tipo';
-    const resumenMomento = momentVisible
-      ? (CERTIFICADO_MOMENTO_OPTIONS.find((m) => m.id === momento)?.label || 'Octubre')
-      : '';
-    const submitDisabled = !hasTipoSeleccionado ||
-      (requiereResumenFinal &&
-        (!resumenFinalListo ||
+    const submitDisabled = !resumenFinalListo ||
           !resumenGradoValido ||
           !resumenSeccionValida ||
           !resumenAnioInicioValido ||
           !resumenAnioFinValido ||
           !resumenMesValido ||
-          !resumenTipoValido)) ||
+      !resumenTipoValido ||
       resumenUploadingFlag;
 
     const handleSubmit = () => {
@@ -2186,23 +2173,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     };
 
     const handleTipoEvaluacionChange = (value) => {
-      console.log('Tipo de evaluación seleccionado:', value);
-      updateCertificadoForm(tabKey, {
-        tipoEvaluacion: value,
-        momento: value === 'materia-pendiente' ? momento || 'octubre' : 'octubre',
-        resumenFinal: value === 'resumen-final'
-          ? resumenFinalData
-          : {
-              excelEstudiantes: null,
-              excelDocentes: null,
-              grado: '',
-              seccion: '',
-              anioEscolarInicio: '',
-              anioEscolarFin: '',
-              mesReporte: '',
-              tipoReporte: 'resumen-final'
-            }
-      });
+      // No hacer nada aquí, solo se usa el select
     };
 
     const handleMomentoChange = (value) => {
@@ -2248,8 +2219,14 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     };
 
     const handleResumenFinalTipoChange = (value) => {
+      console.log('[Frontend] Cambiando tipo de evaluación a:', value);
+      // Solo actualizar el tipo de evaluación sin cambiar la interfaz ni resetear campos
       updateCertificadoForm(tabKey, {
-        resumenFinal: { tipoReporte: value }
+        tipoEvaluacion: value, // Actualizar tipoEvaluacion para que se use al generar
+        resumenFinal: { 
+          ...resumenFinalData, // Mantener todos los campos existentes
+          tipoReporte: value   // Solo actualizar el tipo de reporte
+        }
       });
     };
 
@@ -2263,7 +2240,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
     const getId = (suffix) => `${tabKey}-${suffix}`;
 
-    if (requiereResumenFinal) {
+    // Siempre mostrar la misma interfaz (Resumen Final), sin importar el tipo de evaluación seleccionado
       return (
         <div className="space-y-6">
           {showHelper && (
@@ -2273,35 +2250,6 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               </p>
             </div>
           )}
-
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {CERTIFICADO_EVALUACION_OPTIONS.filter((option) => option.id === 'resumen-final').map((option) => {
-              const isActive = tipoEvaluacion === option.id;
-              return (
-                <button
-                  key={option.id}
-                  id={getId(`option-${option.id}`)}
-                  type="button"
-                  onClick={() => handleTipoEvaluacionChange(option.id)}
-                  className={`text-left border rounded-lg p-4 transition-all ${
-                    isActive
-                      ? 'border-blue-600 bg-blue-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-base font-semibold text-gray-800">{option.title}</span>
-                    {isActive && (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 011.414-1.414L8.5 11.086l6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 leading-relaxed">{option.description}</p>
-                </button>
-              );
-            })}
-          </div>
 
           <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-4">
             <h4 className="text-sm font-semibold text-amber-900">Archivos requeridos</h4>
@@ -2476,164 +2424,6 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               {resumenUploadingFlag ? 'Procesando...' : (submitLabel || 'Guardar (Resumen Final)')}
             </button>
           </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="space-y-6">
-        {showHelper && (
-          <div className="bg-blue-50 border border-blue-100 text-blue-800 px-4 py-3 rounded-md">
-            <p className="text-sm">
-              Selecciona el tipo de evaluación que deseas trabajar. Una vez elegido, se mostrarán los campos adicionales.
-            </p>
-          </div>
-        )}
-
-        <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-3">Tipo de Evaluación</label>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-            {CERTIFICADO_EVALUACION_OPTIONS.filter((option) => option.id === 'resumen-final').map((option) => {
-              const isActive = tipoEvaluacion === option.id;
-              return (
-                <button
-                  key={option.id}
-                  id={getId(`option-${option.id}`)}
-                  type="button"
-                  onClick={() => handleTipoEvaluacionChange(option.id)}
-                  className={`text-left border rounded-lg p-4 transition-all ${
-                    isActive
-                      ? 'border-blue-600 bg-blue-50 shadow-md'
-                      : 'border-gray-200 bg-white hover:border-blue-400 hover:shadow-sm'
-                  }`}
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-base font-semibold text-gray-800">{option.title}</span>
-                    {isActive && (
-                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-blue-600" viewBox="0 0 20 20" fill="currentColor">
-                        <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-7.25 7.25a1 1 0 01-1.414 0l-3.25-3.25a1 1 0 011.414-1.414L8.5 11.086l6.543-6.543a1 1 0 011.414 0z" clipRule="evenodd" />
-                      </svg>
-                    )}
-                  </div>
-                  <p className="text-sm text-gray-600 leading-relaxed">{option.description}</p>
-                </button>
-              );
-            })}
-          </div>
-
-          {momentVisible && (
-            <div className="mt-4">
-              <span className="block text-xs uppercase tracking-wide text-gray-500 font-semibold mb-2">Momento de regularización</span>
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-                {CERTIFICADO_MOMENTO_OPTIONS.map((option) => {
-                  const isActive = momento === option.id;
-                  return (
-                    <button
-                      key={option.id}
-                      id={getId(`momento-${option.id}`)}
-                      type="button"
-                      onClick={() => handleMomentoChange(option.id)}
-                      className={`px-3 py-2 rounded-md text-sm font-medium transition-all ${
-                        isActive
-                          ? 'bg-indigo-600 text-white shadow-md'
-                          : 'bg-gray-100 text-gray-700 hover:bg-indigo-50 hover:text-indigo-600'
-                      }`}
-                    >
-                      {option.label}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="text-xs text-gray-500 mt-2">
-                Selecciona el momento evaluativo en el que se regulariza la materia pendiente. Esto se enviará junto al certificado.
-              </p>
-            </div>
-          )}
-        </div>
-
-        {hasTipoSeleccionado ? (
-          <>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Formato</label>
-                <select
-                  id={getId('select-tipo-formato')}
-                  className="border rounded p-2 w-full"
-                  value={formato}
-                  onChange={(e) => handleFormatoChange(e.target.value)}
-                >
-                  <option value="1-3">1-3 año (Formato Original)</option>
-                  <option value="1-5">1-5 año (Formato Quinto)</option>
-                </select>
-                <p className="text-xs text-gray-500 mt-1">
-                  {formato === '1-3'
-                    ? 'Usa la plantilla notascertificadas.xlsx (hasta 3er año)'
-                    : 'Usa la plantilla formatoquinto.xlsx (hasta 5to año)'}
-                </p>
-              </div>
-              <div className="bg-gray-50 border border-dashed border-gray-300 rounded-md p-4 text-sm text-gray-600">
-                <p className="font-semibold text-gray-700">Resumen de la selección</p>
-                <ul className="mt-2 space-y-1">
-                  <li><strong>Evaluación:</strong> {labelEvaluacion}</li>
-                  {momentVisible && <li><strong>Momento:</strong> {resumenMomento}</li>}
-                  <li><strong>Formato:</strong> {formato === '1-5' ? '1° a 5° año' : '1° a 3° año'}</li>
-                </ul>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <input
-                id={getId('input-cedula')}
-                className="border rounded p-2"
-                placeholder="Cédula"
-                value={estudiante.cedula}
-                onChange={(e) => handleEstudianteChange('cedula', e.target.value)}
-              />
-              <input
-                id={getId('input-nombres')}
-                className="border rounded p-2"
-                placeholder="Nombres"
-                value={estudiante.nombres}
-                onChange={(e) => handleEstudianteChange('nombres', e.target.value)}
-              />
-              <input
-                id={getId('input-apellidos')}
-                className="border rounded p-2"
-                placeholder="Apellidos"
-                value={estudiante.apellidos}
-                onChange={(e) => handleEstudianteChange('apellidos', e.target.value)}
-              />
-            </div>
-
-            <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-              <div className="text-xs text-gray-500 bg-gray-50 border border-gray-200 px-4 py-3 rounded-md">
-                <p>El certificado incluirá automáticamente el tipo de evaluación seleccionado.</p>
-                {momentVisible && (
-                  <p className="mt-1">Recuerda verificar las materias del plan de estudio para este momento.</p>
-                )}
-              </div>
-              <button
-                id={getId('btn-submit')}
-                className={`px-5 py-3 rounded-md font-semibold shadow-sm flex items-center justify-center gap-2 ${
-                  submitDisabled
-                    ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
-                    : 'bg-green-600 text-white hover:bg-green-700 transition-colors'
-                }`}
-                disabled={submitDisabled}
-                onClick={handleSubmit}
-              >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                </svg>
-                {resumenUploadingFlag ? 'Procesando...' : (submitLabel || `Guardar (${labelEvaluacion})`)}
-              </button>
-            </div>
-          </>
-        ) : (
-          <div className="bg-yellow-50 border border-yellow-200 text-yellow-800 px-4 py-3 rounded-md text-sm">
-            Selecciona primero el tipo de evaluación para ver los campos disponibles.
-          </div>
-        )}
       </div>
     );
   };
@@ -3623,17 +3413,17 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
   // Función para cargar las aulas
   const loadAulas = async () => {
     try {
-    const response = await fetch('/api/aulas');
-    const result = await response.json();
-    
-    if (response.ok && result.success) {
-      console.log('Aulas cargadas:', result.data);
-      console.log('Ejemplo de periodo de un aula:', result.data[0]?.periodo);
+      const response = await fetch('/api/aulas');
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('Aulas cargadas:', result.data);
+        console.log('Ejemplo de periodo de un aula:', result.data[0]?.periodo);
       const aulasNormalizadas = (result.data || []).map(normalizeAulaData);
       setAulas(aulasNormalizadas);
-    } else {
-      console.error('Error al cargar aulas:', result.message);
-    }
+      } else {
+        console.error('Error al cargar aulas:', result.message);
+      }
     } catch (error) {
       console.error('Error al cargar aulas:', error);
     }
@@ -10703,13 +10493,13 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               >
                 Guía
               </button>
-              <div className="flex items-center gap-2">
-                <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Estado</span>
-                <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
-                  {certificadoEstadoLabel}
-                </span>
-              </div>
+            <div className="flex items-center gap-2">
+              <span className="text-xs uppercase tracking-wide text-gray-500 font-semibold">Estado</span>
+              <span className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-blue-100 text-blue-700 text-sm font-medium">
+                {certificadoEstadoLabel}
+              </span>
             </div>
+          </div>
           </div>
 
           {renderCertificadoEvaluacionForm({

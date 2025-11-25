@@ -3,6 +3,24 @@ import { connectDB } from '@/database/db';
 import Aula from '@/database/models/Aula';
 import Estudiante from '@/database/models/Estudiante';
 
+const normalizeMateriasAsignadas = (materias) => {
+  if (!materias) return [];
+  const baseArray = Array.isArray(materias)
+    ? materias
+    : typeof materias === 'object'
+      ? Object.values(materias)
+      : [];
+  return baseArray
+    .map((item) => {
+      if (!item) return '';
+      if (typeof item === 'object') {
+        return String(item.id || item.codigo || item.value || item._id || '').trim();
+      }
+      return String(item).trim();
+    })
+    .filter(Boolean);
+};
+
 export async function GET(request) {
   try {
     await connectDB();
@@ -30,12 +48,93 @@ export async function GET(request) {
 
     const asignacionesAula = Array.isArray(aula.asignaciones) ? aula.asignaciones : [];
 
-    // Obtener materias únicas en orden
-    const materiasOrdenadas = Array.from(new Set(
-      asignacionesAula
-        .filter(a => a.materia && a.materia.nombre)
-        .map(a => a.materia.nombre)
-    ));
+    const normalizarClaveMateria = (nombre = '') =>
+      nombre
+        .toString()
+        .trim()
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+
+    // Construir lista de materias restringidas por alumnos (si existe)
+    const materiasAsignadasSet = new Set();
+    const materiasAsignadasNombreSet = new Set();
+    (aula.alumnos || []).forEach((alumno) => {
+      normalizeMateriasAsignadas(alumno.materiasAsignadas).forEach((materiaId) => {
+        if (!materiaId) return;
+        const value = materiaId.toString();
+        materiasAsignadasSet.add(value);
+        materiasAsignadasNombreSet.add(normalizarClaveMateria(value));
+      });
+    });
+
+    const asignacionTieneProfesor = (asignacion = {}) => {
+      if (asignacion.profesorId) return true;
+      const profesor = asignacion.profesor || {};
+      const nombre = typeof profesor.nombre === 'string' ? profesor.nombre.trim() : '';
+      const apellido = typeof profesor.apellido === 'string' ? profesor.apellido.trim() : '';
+      return Boolean(nombre || apellido);
+    };
+
+    const asignacionesActivas = asignacionesAula.filter((asignacion) => {
+      const nombreMateria = asignacion?.materia?.nombre;
+      if (!nombreMateria) return false;
+      if (asignacionTieneProfesor(asignacion)) return true;
+
+      const posiblesIds = [
+        asignacion.materia?.id,
+        asignacion.materia?._id,
+        asignacion.materia?.codigo
+      ]
+        .map((id) => (id && id.toString ? id.toString() : id))
+        .filter(Boolean);
+
+      const idCoincide = posiblesIds.some((id) => materiasAsignadasSet.has(id));
+      const nombreCoincide = materiasAsignadasNombreSet.has(normalizarClaveMateria(nombreMateria));
+      return idCoincide || nombreCoincide;
+    });
+
+    const asignacionesParaProcesar =
+      asignacionesActivas.length > 0 ? asignacionesActivas : asignacionesAula;
+
+    // Mapear IDs/códigos de materias a su nombre para facilitar búsqueda
+    const materiasOrdenAula = [];
+    asignacionesParaProcesar.forEach((asignacion) => {
+      const nombreMateria = asignacion?.materia?.nombre;
+      if (nombreMateria) {
+        materiasOrdenAula.push(nombreMateria);
+      }
+    });
+
+    const materiasRestrictivasOrdenadas = [];
+    if (materiasAsignadasSet.size || materiasAsignadasNombreSet.size) {
+      asignacionesParaProcesar.forEach((asignacion) => {
+        const nombreMateria = asignacion?.materia?.nombre;
+        if (!nombreMateria) return;
+        const posiblesIds = [
+          asignacion.materia?.id,
+          asignacion.materia?._id,
+          asignacion.materia?.codigo
+        ]
+          .map((id) => (id && id.toString ? id.toString() : id))
+          .filter(Boolean);
+
+        const nombreNormalizado = normalizarClaveMateria(nombreMateria);
+
+        const coincide =
+          posiblesIds.some((id) => materiasAsignadasSet.has(id)) ||
+          materiasAsignadasNombreSet.has(nombreNormalizado);
+
+        if (coincide) {
+          materiasRestrictivasOrdenadas.push(nombreMateria);
+        }
+      });
+    }
+
+    // Obtener materias únicas en orden considerando restricciones
+    const materiasOrdenadas = materiasRestrictivasOrdenadas.length
+      ? Array.from(new Set(materiasRestrictivasOrdenadas))
+      : Array.from(new Set(materiasOrdenAula));
 
     // Obtener estudiantes desde la colección principal
     const estudiantesIds = (aula.alumnos || []).map(al => al._id?.toString()).filter(Boolean);
@@ -299,7 +398,7 @@ export async function GET(request) {
       
       if (alumno.materiasAsignadas === undefined || alumno.materiasAsignadas === null || 
           (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length === 0)) {
-        materiasAsignadas = asignacionesAula.map(asig => asig.materia?.id).filter(Boolean);
+        materiasAsignadas = asignacionesParaProcesar.map(asig => asig.materia?.id).filter(Boolean);
         tieneRestricciones = false;
       } else if (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length > 0) {
         materiasAsignadas = alumno.materiasAsignadas;
@@ -309,16 +408,16 @@ export async function GET(request) {
       // Calcular notas por materia según el momento seleccionado
       const notasPorMateria = {};
       
-      for (const asig of asignacionesAula) {
+      for (const asig of asignacionesParaProcesar) {
         const nombreMateria = asig.materia?.nombre || 'Materia';
         const materiaId = asig.materia?.id;
         
-        // Si el estudiante tiene restricciones y no tiene esta materia asignada, mostrar "AP"
+        // Si el estudiante tiene restricciones y no tiene esta materia asignada, mostrar "NC"
         if (tieneRestricciones && materiaId && !materiasAsignadas.includes(materiaId)) {
           if (momentoParam === 'final') {
-            notasPorMateria[nombreMateria] = { definitiva: 'AP' };
+            notasPorMateria[nombreMateria] = { definitiva: 'NC' };
           } else {
-            notasPorMateria[nombreMateria] = { nota: 'AP' };
+            notasPorMateria[nombreMateria] = { nota: 'NC' };
           }
           continue;
         }
@@ -335,7 +434,7 @@ export async function GET(request) {
 
           const valorPromedio = (nota) => {
             if (nota === '' || nota === null || nota === undefined) return 1;
-            if (nota === 'AP') return 1;
+            if (nota === 'NC') return 1;
             const numero = typeof nota === 'number' ? nota : parseFloat(nota);
             return Number.isFinite(numero) ? numero : 1;
           };
