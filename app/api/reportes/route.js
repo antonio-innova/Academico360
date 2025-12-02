@@ -189,6 +189,7 @@ export async function GET(request) {
       
       // Procesar notas del primer momento (solo para estudiantes que tienen la materia asignada)
       actividadesPrimerMomento.forEach(actividad => {
+        const porcentajeActividad = parseFloat(actividad.porcentaje) || 0;
         (actividad.calificaciones || []).forEach(cal => {
           const alumnoId = cal.alumnoId;
           // Solo procesar si el estudiante tiene la materia asignada
@@ -196,7 +197,10 @@ export async function GET(request) {
             if (!notasPorMomento[alumnoId]) {
               notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
             }
-            notasPorMomento[alumnoId].momento1.push(cal.nota);
+            notasPorMomento[alumnoId].momento1.push({
+              nota: cal.nota,
+              porcentaje: porcentajeActividad
+            });
           }
         });
       });
@@ -204,6 +208,7 @@ export async function GET(request) {
       // Procesar notas del segundo momento (solo para estudiantes que tienen la materia asignada)
       if (momento >= 2) {
         actividadesSegundoMomento.forEach(actividad => {
+          const porcentajeActividad = parseFloat(actividad.porcentaje) || 0;
           (actividad.calificaciones || []).forEach(cal => {
             const alumnoId = cal.alumnoId;
             // Solo procesar si el estudiante tiene la materia asignada
@@ -211,7 +216,10 @@ export async function GET(request) {
               if (!notasPorMomento[alumnoId]) {
                 notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
               }
-              notasPorMomento[alumnoId].momento2.push(cal.nota);
+              notasPorMomento[alumnoId].momento2.push({
+                nota: cal.nota,
+                porcentaje: porcentajeActividad
+              });
             }
           });
         });
@@ -220,6 +228,7 @@ export async function GET(request) {
       // Procesar notas del tercer momento (solo para estudiantes que tienen la materia asignada)
       if (momento === 3) {
         actividadesTercerMomento.forEach(actividad => {
+          const porcentajeActividad = parseFloat(actividad.porcentaje) || 0;
           (actividad.calificaciones || []).forEach(cal => {
             const alumnoId = cal.alumnoId;
             // Solo procesar si el estudiante tiene la materia asignada
@@ -227,7 +236,10 @@ export async function GET(request) {
               if (!notasPorMomento[alumnoId]) {
                 notasPorMomento[alumnoId] = { momento1: [], momento2: [], momento3: [] };
               }
-              notasPorMomento[alumnoId].momento3.push(cal.nota);
+              notasPorMomento[alumnoId].momento3.push({
+                nota: cal.nota,
+                porcentaje: porcentajeActividad
+              });
             }
           });
         });
@@ -238,14 +250,23 @@ export async function GET(request) {
       Object.keys(notasPorMomento).forEach(alumnoId => {
         const notas = notasPorMomento[alumnoId];
         
-        // Calcular promedio del primer momento
+        // Calcular promedio del primer momento (suma de nota * porcentaje/100 por actividad)
         let promedioMomento1;
         if (notas.momento1.length > 0) {
-          const sumaNotas1 = notas.momento1.reduce((a, b) => {
-            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
-            return a + (isNaN(nota) ? 1 : nota);
-          }, 0);
-          promedioMomento1 = sumaNotas1 / notas.momento1.length;
+          const acumulado1 = notas.momento1.reduce(
+            (acc, registro) => {
+              const rawNota = registro && registro.nota;
+              let nota = rawNota === 'N/A' || rawNota === null || rawNota === undefined ? 1 : Number(rawNota);
+              if (isNaN(nota)) nota = 1;
+              const porcentaje = Number(registro && registro.porcentaje) || 0;
+              acc.sumaPonderada += nota * (porcentaje / 100);
+              return acc;
+            },
+            { sumaPonderada: 0 }
+          );
+
+          // La suma ya está en escala 0-20 porque usamos nota * porcentaje/100
+          promedioMomento1 = acumulado1.sumaPonderada || 1;
           
           // Sumar puntos extras del momento 1 si existen
           const puntosExtra1 = puntosExtrasMomento1[alumnoId] || 0;
@@ -257,14 +278,22 @@ export async function GET(request) {
           promedioMomento1 = 1;
         }
         
-        // Calcular promedio del segundo momento
+        // Calcular promedio del segundo momento (suma de nota * porcentaje/100 por actividad)
         let promedioMomento2;
         if (notas.momento2.length > 0) {
-          const sumaNotas2 = notas.momento2.reduce((a, b) => {
-            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
-            return a + (isNaN(nota) ? 1 : nota);
-          }, 0);
-          promedioMomento2 = sumaNotas2 / notas.momento2.length;
+          const acumulado2 = notas.momento2.reduce(
+            (acc, registro) => {
+              const rawNota = registro && registro.nota;
+              let nota = rawNota === 'N/A' || rawNota === null || rawNota === undefined ? 1 : Number(rawNota);
+              if (isNaN(nota)) nota = 1;
+              const porcentaje = Number(registro && registro.porcentaje) || 0;
+              acc.sumaPonderada += nota * (porcentaje / 100);
+              return acc;
+            },
+            { sumaPonderada: 0 }
+          );
+
+          promedioMomento2 = acumulado2.sumaPonderada || 1;
           
           // Sumar puntos extras del momento 2 si existen
           const puntosExtra2 = puntosExtrasMomento2[alumnoId] || 0;
@@ -276,14 +305,22 @@ export async function GET(request) {
           promedioMomento2 = 1;
         }
 
-        // Calcular promedio del tercer momento
+        // Calcular promedio del tercer momento (suma de nota * porcentaje/100 por actividad)
         let promedioMomento3;
         if (notas.momento3.length > 0) {
-          const sumaNotas3 = notas.momento3.reduce((a, b) => {
-            const nota = b === 'N/A' || b === null || b === undefined ? 1 : Number(b);
-            return a + (isNaN(nota) ? 1 : nota);
-          }, 0);
-          promedioMomento3 = sumaNotas3 / notas.momento3.length;
+          const acumulado3 = notas.momento3.reduce(
+            (acc, registro) => {
+              const rawNota = registro && registro.nota;
+              let nota = rawNota === 'N/A' || rawNota === null || rawNota === undefined ? 1 : Number(rawNota);
+              if (isNaN(nota)) nota = 1;
+              const porcentaje = Number(registro && registro.porcentaje) || 0;
+              acc.sumaPonderada += nota * (porcentaje / 100);
+              return acc;
+            },
+            { sumaPonderada: 0 }
+          );
+
+          promedioMomento3 = acumulado3.sumaPonderada || 1;
           
           // Sumar puntos extras del momento 3 si existen
           const puntosExtra3 = puntosExtrasMomento3[alumnoId] || 0;

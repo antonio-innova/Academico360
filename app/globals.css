@@ -11,6 +11,44 @@ body {
   color: #000000;
 }
 
+@layer components {
+  .section-header {
+    @apply flex flex-col gap-3 items-start sm:flex-row sm:items-center sm:justify-between mb-4;
+  }
+
+  .section-actions {
+    @apply flex flex-col gap-2 w-full sm:flex-row sm:w-auto sm:justify-end;
+  }
+
+  .section-filters {
+    @apply grid grid-cols-1 sm:grid-cols-2 gap-4;
+  }
+
+  .section-filters-3 {
+    @apply grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4;
+  }
+
+  .responsive-card-grid {
+    @apply grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3;
+  }
+
+  .form-actions {
+    @apply flex flex-col gap-2 w-full sm:flex-row sm:justify-end sm:space-x-3;
+  }
+}
+
+.section-actions > *,
+.form-actions > * {
+  width: 100%;
+}
+
+@media (min-width: 640px) {
+  .section-actions > *,
+  .form-actions > * {
+    width: auto;
+  }
+}
+
 /* Hacer todos los textos negros por defecto */
 body,
 p,

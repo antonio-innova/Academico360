@@ -352,17 +352,12 @@ export async function GET(request) {
         const promedioConPuntos = Math.min(20, Math.max(0, ultimo + puntosExtraAlumno));
         return Math.round(promedioConPuntos);
       } else {
-        const totalPorcentaje = registrosPromedio.reduce((sum, item) => sum + (item.porcentaje > 0 ? item.porcentaje : 0), 0);
-        let promedioBase;
-        if (totalPorcentaje > 0) {
-          promedioBase = registrosPromedio.reduce((sum, item) => {
-            const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
-            return sum + (item.valor * (porcentaje / totalPorcentaje));
-          }, 0);
-        } else {
-          const suma = registrosPromedio.reduce((sum, item) => sum + item.valor, 0);
-          promedioBase = suma / registrosPromedio.length;
-        }
+        // Misma regla que en aulas/boletín:
+        // notaMomento = sum(valor * porcentaje/100) + puntosExtra (tope 20)
+        const promedioBase = registrosPromedio.reduce((sum, item) => {
+          const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
+          return sum + (item.valor * (porcentaje / 100));
+        }, 0);
         const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
         const promedioConPuntos = Math.min(20, Math.max(0, promedioBase + puntosExtraAlumno));
         const nfFinal = Math.min(20, Math.max(0, redondearPromedio(promedioConPuntos)));

@@ -2251,9 +2251,9 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
             </div>
           )}
 
-          <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 space-y-4">
+          <div className="border border-amber-200 bg-amber-50 rounded-lg p-4 lg:p-6 space-y-4 w-full">
             <h4 className="text-sm font-semibold text-amber-900">Archivos requeridos</h4>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Tipo de evaluación</label>
                 <select
@@ -2317,7 +2317,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año a generar</label>
                 <select
@@ -2353,7 +2353,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 )}
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
               <div className="flex flex-col gap-2">
                 <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año escolar (inicio)</label>
                 <input
@@ -2407,10 +2407,10 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
             </p>
           </div>
 
-          <div className="flex justify-end">
+          <div className="flex flex-col gap-3 sm:flex-row sm:justify-end">
             <button
               id={getId('btn-submit')}
-              className={`px-5 py-3 rounded-md font-semibold shadow-sm flex items-center justify-center gap-2 ${
+              className={`w-full sm:w-auto px-5 py-3 rounded-md font-semibold shadow-sm flex items-center justify-center gap-2 ${
                 submitDisabled
                   ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
                   : 'bg-green-600 text-white hover:bg-green-700 transition-colors'
@@ -9696,7 +9696,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               </div>
 
               {/* Botones para generar reportes */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="section-filters-3">
                 {[1, 2, 3].map(momento => (
                   <button
                     key={momento}
@@ -10025,7 +10025,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               {/* Mostrar Reporte */}
               {attendanceReport && attendanceReport.length > 0 && (
                 <div className="bg-gray-50 rounded-lg p-6">
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="section-header">
                     <div>
                       <h3 className="text-lg font-semibold text-gray-800">
                         Reporte de Asistencia - {new Date(reportDate).toLocaleDateString('es-ES', {
@@ -10307,7 +10307,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
                   <fieldset className="border rounded p-4">
                     <legend className="px-2 text-sm font-semibold">Identificación del Estudiante</legend>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="section-filters-3">
                       <input id="input-cedula-nota" className="border rounded p-2" placeholder="Cédula" value={notaEst.cedula} onChange={(e)=>setNotaEst(prev=>({...prev, cedula:e.target.value}))} />
                       <input id="input-nombres-nota" className="border rounded p-2" placeholder="Nombres" value={notaEst.nombres} onChange={(e)=>setNotaEst(prev=>({...prev, nombres:e.target.value}))} />
                       <input id="input-apellidos-nota" className="border rounded p-2" placeholder="Apellidos" value={notaEst.apellidos} onChange={(e)=>setNotaEst(prev=>({...prev, apellidos:e.target.value}))} />
@@ -10321,7 +10321,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   <fieldset className="border rounded p-4">
                     <legend className="px-2 text-sm font-semibold">Plan de Estudio</legend>
                     <div className="space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div className="section-filters">
                         <div>
                           <label className="block text-sm font-semibold text-gray-700 mb-1">Plan oficial (formato)</label>
                           <select
@@ -10427,7 +10427,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 <div className="space-y-4">
                   <p className="text-gray-600">Rellena los datos mínimos del estudiante y genera el Excel desde la plantilla.</p>
 
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                  <div className="section-filters mb-4">
                     <div>
                       <label className="block text-sm font-semibold text-gray-700 mb-2">Tipo de Formato</label>
                       <select
@@ -10448,7 +10448,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="section-filters-3">
                     <input
                       id="input-cedula-generar"
                       className="border rounded p-2"
@@ -10562,7 +10562,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 )}
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="section-filters">
                 <div>
                   <label className="block text-sm font-semibold text-gray-700 mb-1">Nombre del documento</label>
                   <input
@@ -10791,7 +10791,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               {userType === 'docente' ? (
                 // Vista de aulas para docentes
                 <div className="p-6">
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="responsive-card-grid gap-6">
                     {aulas.filter(aula => 
                       aula.asignaciones?.some(asignacion => {
                         // Primero intentar comparar por ID si está disponible
@@ -11019,7 +11019,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   </div>
 
                   {/* Grid de Aulas */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  <div className="responsive-card-grid gap-6">
                     {aulas.map((aula) => (
                       <div key={aula._id} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
                         <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-500">
@@ -12097,21 +12097,21 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 </div>
               )}
               {activeTab === 'docentes' && (
-                <div>
-                  <div className="flex justify-between items-center mb-4">
+                <div className="space-y-6">
+                  <div className="section-header">
                     <h2 className="text-xl font-semibold text-gray-800">Gestión de Profesores</h2>
-                    <div className="flex gap-2">
+                    <div className="section-actions">
                       <button
                         id="btn-tour-docentes"
                         onClick={startTourDocentes}
-                        className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm"
+                        className="px-3 py-2 bg-green-600 text-white rounded-md hover:bg-green-700 transition-colors font-medium shadow-sm w-full sm:w-auto"
                       >
                         Guía
                       </button>
                       <button
                         id="btn-agregar-profesor"
                         onClick={() => setShowProfesorForm(true)}
-                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+                        className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors w-full sm:w-auto"
                       >
                         Agregar Profesor
                       </button>
@@ -12120,9 +12120,9 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
                   
                   {/* Filtros de búsqueda */}
-                  <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
+                  <div className="mb-6 bg-gray-50 p-4 sm:p-6 rounded-lg border border-gray-200">
                     <h3 className="text-md font-medium text-gray-700 mb-3">Filtrar profesores</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="section-filters">
                       <div>
                         <label htmlFor="searchProfesorNombre" className="block text-sm font-medium text-gray-700 mb-1">Nombre o Apellido</label>
                         <input
@@ -12150,12 +12150,12 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   
                   {/* Formulario para agregar/editar profesor */}
                   {showProfesorForm && (
-                    <div id="profesorForm" className="mb-6 bg-white p-6 rounded-lg border border-gray-300 shadow-md">
+                    <div id="profesorForm" className="mb-6 bg-white p-4 sm:p-6 rounded-lg border border-gray-200 shadow-md">
                       <h3 className="text-lg font-medium text-gray-800 mb-4">
                         {profesorFormData.modoEdicion ? 'Editar Profesor' : 'Agregar Nuevo Profesor'}
                       </h3>
                       <form onSubmit={profesorFormData.modoEdicion ? handleEditProfesor : handleAddProfesor}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="section-filters mb-4">
                           <div>
                             <label htmlFor="nombre" className="block text-sm font-medium text-gray-700 mb-1">Nombre *</label>
                             <input
@@ -12284,7 +12284,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                             </div>
                           </div>
                         </div>
-                        <div className="flex justify-end space-x-3">
+                        <div className="form-actions">
                           <button
                             type="button"
                             onClick={() => {
@@ -12319,7 +12319,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   
                   {/* Lista de profesores */}
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                    <div className="responsive-card-grid gap-4 sm:gap-6 p-4">
                       {profesores
                         .filter(profesor => 
                           (searchProfesorNombre === '' || 
@@ -12451,7 +12451,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                         (searchProfesorCedula === '' || 
                           profesor.cedula.toLowerCase().includes(searchProfesorCedula.toLowerCase()))
                       ).length === 0 && (
-                        <div className="col-span-3 py-6 text-center text-gray-500">
+                        <div className="col-span-full py-6 text-center text-gray-500">
                           No se encontraron profesores con los criterios de búsqueda especificados.
                         </div>
                       )}
@@ -12463,7 +12463,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               {/* Gestión de Materias */}
               {activeTab === 'materias' && (
                 <div>
-                  <div className="flex justify-between items-center mb-4">
+                  <div className="section-header">
                     <h2 className="text-xl font-semibold text-gray-800">Gestión de Materias</h2>
                     <button
                       onClick={() => setShowMateriaForm(true)}
@@ -12476,7 +12476,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   {/* Filtros de búsqueda */}
                   <div className="mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
                     <h3 className="text-md font-medium text-gray-700 mb-3">Filtrar materias</h3>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="section-filters">
                       <div>
                         <label htmlFor="searchMateriaNombre" className="block text-sm font-medium text-gray-700 mb-1">Nombre</label>
                         <input
@@ -12509,7 +12509,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                         {materiaFormData.modoEdicion ? 'Editar Materia' : 'Agregar Nueva Materia'}
                       </h3>
                       <form onSubmit={materiaFormData.modoEdicion ? handleEditMateria : handleAddMateria}>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="section-filters mb-4">
                           <div>
                             <label htmlFor="codigo" className="block text-sm font-medium text-gray-700 mb-1">Código *</label>
                             <input
@@ -12578,7 +12578,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   
                   {/* Lista de materias */}
                   <div className="bg-white rounded-lg border border-gray-200 overflow-hidden">
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 p-4">
+                    <div className="responsive-card-grid gap-4 p-4">
                       {materias
                         .filter(materia => 
                           (searchMateriaNombre === '' || 
@@ -12703,7 +12703,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   {/* Formulario de Agregar/Editar Alumno */}
                   {showStudentForm && (
                     <div className="bg-gradient-to-br from-blue-50 to-white p-6 rounded-lg shadow-md mb-6 border-t-4 border-blue-500 border-r border-b border-l border-blue-100 animate-fadeIn transition-all duration-300">
-                      <div className="flex justify-between items-center mb-4">
+                      <div className="section-header">
                         <h3 className="text-xl font-bold text-blue-700 flex items-center">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
@@ -12721,7 +12721,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                         </button>
                       </div>
                     <form onSubmit={(e) => formData.modoEdicion ? handleEditAlumno(e) : handleAddAlumno(e)}>
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                      <div className="section-filters mb-4">
                         <div>
                           <label className="block text-sm font-medium text-blue-700 mb-1 flex items-center">
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -13027,7 +13027,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                           Datos del Representante
                         </h4>
                         
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        <div className="section-filters mb-4">
                           {/* Nombre del Representante */}
                           <div>
                             <label className="block text-sm font-medium text-blue-700 mb-1 flex items-center">
@@ -13250,7 +13250,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                       Filtros de búsqueda avanzada
                     </h4>
                     
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="section-filters">
                       <div className="bg-white p-4 rounded-lg shadow-sm border border-blue-100 hover:shadow-md transition-all duration-300">
                         <label className="block text-sm font-medium text-blue-700 mb-2 flex items-center">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -13770,7 +13770,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                         <div className="bg-blue-50 p-4 rounded-lg border border-blue-200 mb-6">
                           <h4 className="text-lg font-bold text-blue-800 mb-3">Información de la Asignación</h4>
                           
-                          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                          <div className="section-filters-3 mb-4">
                             <div>
                               <label className="block text-sm font-medium text-gray-700 mb-1">
                                 Año
@@ -14260,7 +14260,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                       </svg>
                       Filtros de búsqueda avanzada
                     </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="section-filters-3">
                       <div className="bg-white p-4 rounded-lg shadow-sm border border-blue-100 hover:shadow-md transition-all duration-300">
                         <label className="block text-sm font-medium text-blue-700 mb-2 flex items-center">
                           <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -14745,7 +14745,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
               </div>
 
               <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                <div className="section-filters-3 text-sm">
                   <div>
                     <span className="font-semibold text-gray-700">Año:</span>
                     <span className="ml-2 text-blue-600">{aulaGestionProfesores.anio}° Año</span>
@@ -14999,7 +14999,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6">
-              <div className="flex justify-between items-center mb-4">
+              <div className="section-header">
                 <h3 className="text-xl font-bold text-gray-800">
                   Representante de {selectedEstudiante.nombre} {selectedEstudiante.apellido || ''}
                 </h3>

@@ -112,13 +112,13 @@ export async function GET(request, { params }) {
         }
         
         const repeticiones = Math.max(ocurrenciasPorProfesor[id] || 1, 1);
-        console.log(`✅ #${index + 1} Match encontrado:`, {
-          id: profesor._id.toString(),
-          nombre: profesor.nombre,
-          apellido: profesor.apellido,
+          console.log(`✅ #${index + 1} Match encontrado:`, {
+            id: profesor._id.toString(),
+            nombre: profesor.nombre,
+            apellido: profesor.apellido,
           cedula: profesor.idU || profesor.cedula,
           repeticiones
-        });
+          });
         
         for (let i = 0; i < repeticiones; i += 1) {
           filasOrdenadas.push({

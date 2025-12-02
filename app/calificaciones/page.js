@@ -1114,26 +1114,30 @@ function CalificacionesContent() {
       return momento === momentoNum;
     });
 
-    // Obtener calificaciones del alumno
-    const calificaciones = actividadesMomento.map(actividad => {
+    // Obtener calificaciones del alumno junto con su porcentaje
+    const registros = actividadesMomento.map(actividad => {
       const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
       if (!calificacion) return null;
       // Si es NP o Inasistente, no se incluye en el promedio
       if (calificacion.tipoCalificacion === 'np' || calificacion.tipoCalificacion === 'inasistente') {
         return null;
       }
-      return calificacion.tipoCalificacion === 'alfabetica' 
+      const nota = calificacion.tipoCalificacion === 'alfabetica' 
         ? convertirLetraANota(calificacion.notaAlfabetica)
         : (calificacion.nota !== null && calificacion.nota !== undefined ? parseFloat(calificacion.nota) : null);
-    }).filter(nota => nota !== null && !isNaN(nota));
+      const porcentaje = parseFloat(actividad.porcentaje) || 0;
+      if (nota === null || isNaN(nota) || porcentaje === 0) return null;
+      return { nota, porcentaje };
+    }).filter(reg => reg !== null);
     
-    // Calcular promedio ponderado
-    const porcentajes = actividadesMomento.map(actividad => parseFloat(actividad.porcentaje) || 0);
-    const totalPorcentaje = porcentajes.reduce((a, b) => a + b, 0);
+    if (registros.length === 0) return null;
     
-    if (calificaciones.length === 0 || totalPorcentaje === 0) return null;
-    
-    const promedio = calificaciones.reduce((sum, nota, index) => sum + (nota * (porcentajes[index] / totalPorcentaje)), 0);
+    // Sumar directamente nota * porcentaje/100 de cada actividad
+    const sumaPonderada = registros.reduce(
+      (sum, reg) => sum + (reg.nota * (reg.porcentaje / 100)),
+      0
+    );
+    const promedio = sumaPonderada;
     
     // Buscar si hay puntos adicionales para este alumno en este momento
     // Usar puntosAdicionalesResumen que contiene los puntos extras por alumno
@@ -3314,17 +3318,14 @@ const handleSeleccionActividad = (actividadId) => {
                           return acumulado;
                         }, []);
                         
-                        const totalPorcentaje = calificacionesValidas.reduce((sum, item) => sum + item.porcentaje, 0);
-                        
                         let promedioNumerico = null;
                         if (calificacionesValidas.length > 0) {
-                          if (totalPorcentaje > 0) {
-                            const sumaPonderada = calificacionesValidas.reduce((sum, item) => sum + (item.nota * item.porcentaje), 0);
-                            promedioNumerico = sumaPonderada / totalPorcentaje;
-                          } else {
-                            const sumaSimple = calificacionesValidas.reduce((sum, item) => sum + item.nota, 0);
-                            promedioNumerico = sumaSimple / calificacionesValidas.length;
-                          }
+                          // Usar la misma regla: suma(nota * porcentaje/100) sin dividir entre la suma de porcentajes
+                          const sumaPonderada = calificacionesValidas.reduce(
+                            (sum, item) => sum + (item.nota * (item.porcentaje / 100)),
+                            0
+                          );
+                          promedioNumerico = sumaPonderada;
 
                           if (!Number.isFinite(promedioNumerico)) {
                             promedioNumerico = null;

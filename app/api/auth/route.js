@@ -160,7 +160,7 @@ export async function POST(request) {
         redirectPath = '/sidebar';
       }
       
-      const cookieStore = await cookies();
+      const cookieStore = cookies();
       
       cookieStore.set('userId', usuario.idU, { 
         httpOnly: false,
