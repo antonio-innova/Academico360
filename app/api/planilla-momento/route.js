@@ -152,16 +152,14 @@ export async function GET(request) {
       profesor: asignacion.profesor
     });
     
-    // Preparar nombres de actividades (máximo 6)
+    // Encabezados de columnas de evaluación: EV1..EV8 y DEF (definitivo)
     const nombresActividades = [];
-    const maxActividades = 6;
-    for (let i = 0; i < maxActividades; i++) {
-      if (i < actividadesMomento.length) {
-        nombresActividades.push(actividadesMomento[i].nombre);
-      } else {
-        nombresActividades.push('');
-      }
+    const maxActividadesHeader = 8;
+    for (let i = 0; i < maxActividadesHeader; i++) {
+      nombresActividades.push(`EV${i + 1}`);
     }
+    // Agregar columna de definitivo al final
+    nombresActividades.push('DEF');
 
     const headers = [
       ['', '', '', '', '', '', '', '', '', '', '', '', '', ''],
@@ -185,20 +183,52 @@ export async function GET(request) {
         '', // Columna vacía para separación
       ];
 
-      // Agregar calificaciones de cada actividad (máximo 6 columnas)
-      const maxActividades = 6;
+      // Agregar calificaciones de cada actividad (EV1..EV8) y calcular definitivo con porcentaje
+      const maxActividades = 8;
+      const registrosPromedio = [];
+
       for (let i = 0; i < maxActividades; i++) {
         if (i < actividadesMomento.length) {
           const actividad = actividadesMomento[i];
-          const calificacion = actividad.calificaciones?.find(c => 
+          const calificacion = actividad.calificaciones?.find(c =>
             c.alumnoId === estudiante._id.toString()
           );
-          const nota = calificacion?.nota;
-          fila.push(nota || '');
+
+          const porcentaje = parseFloat(actividad.porcentaje) || 0;
+          let valorNumerico = null;
+
+          if (calificacion && calificacion.nota !== undefined && calificacion.nota !== null && calificacion.nota !== '') {
+            const notaNumber = typeof calificacion.nota === 'number'
+              ? calificacion.nota
+              : parseFloat(calificacion.nota);
+            if (!Number.isNaN(notaNumber)) {
+              valorNumerico = notaNumber;
+            }
+          }
+
+          if (valorNumerico !== null) {
+            registrosPromedio.push({ valor: valorNumerico, porcentaje });
+            fila.push(valorNumerico);
+          } else {
+            fila.push('');
+          }
         } else {
-          fila.push(''); // Columna vacía si no hay más actividades
+          fila.push(''); // Columnas vacías si no hay más actividades
         }
       }
+
+      // Calcular definitivo como sum(nota * porcentaje / 100), limitado entre 0 y 20
+      let definitivo = '';
+      if (registrosPromedio.length > 0) {
+        const sumaPonderada = registrosPromedio.reduce((sum, item) => {
+          const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
+          return sum + (item.valor * (porcentaje / 100));
+        }, 0);
+        const notaRedondeada = Math.round(Math.min(20, Math.max(0, sumaPonderada)));
+        definitivo = notaRedondeada;
+      }
+
+      fila.push(definitivo);
 
       return fila;
     });
@@ -216,12 +246,15 @@ export async function GET(request) {
       { wch: 35 },  // APELLIDOS Y NOMBRES
       { wch: 4 },   // Separación
       { wch: 4 },   // Separación
-      { wch: 18 },  // Actividad 1 (más ancho para que el nombre sea legible)
-      { wch: 18 },  // Actividad 2
-      { wch: 18 },  // Actividad 3
-      { wch: 18 },  // Actividad 4
-      { wch: 18 },  // Actividad 5
-      { wch: 18 }   // Actividad 6
+      { wch: 8 },   // EV1
+      { wch: 8 },   // EV2
+      { wch: 8 },   // EV3
+      { wch: 8 },   // EV4
+      { wch: 8 },   // EV5
+      { wch: 8 },   // EV6
+      { wch: 8 },   // EV7
+      { wch: 8 },   // EV8
+      { wch: 8 }    // DEF
     ];
     ws['!cols'] = colWidths;
 
@@ -268,3 +301,4 @@ export async function GET(request) {
     }, { status: 500 });
   }
 }
+
