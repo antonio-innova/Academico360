@@ -138,6 +138,56 @@ export async function GET(request) {
     // Crear el workbook
     const wb = XLSX.utils.book_new();
 
+    // Helpers para puntos extras y redondeo (mismas reglas que en reportes)
+    const buildPuntosExtraMap = (asignacionLocal, momentoLocal) => {
+      const map = {};
+      const key = `momento${momentoLocal}`;
+      if (asignacionLocal?.puntosPorMomento && Array.isArray(asignacionLocal.puntosPorMomento[key])) {
+        asignacionLocal.puntosPorMomento[key].forEach((registro) => {
+          const id = registro?.alumnoId;
+          if (!id && id !== 0) return;
+          const keyId = id?.toString ? id.toString() : String(id);
+          map[keyId] = parseFloat(registro.puntos) || 0;
+        });
+      } else if (Array.isArray(asignacionLocal?.puntosExtras)) {
+        asignacionLocal.puntosExtras.forEach((registro) => {
+          const id = registro?.alumnoId;
+          if (!id && id !== 0) return;
+          const keyId = id?.toString ? id.toString() : String(id);
+          map[keyId] = parseFloat(registro.puntos) || 0;
+        });
+      }
+      return map;
+    };
+
+    const obtenerPuntosExtraAlumno = (map, alumno) => {
+      if (!map) return 0;
+      const posibles = [
+        alumno._id && alumno._id.toString(),
+        alumno.id && alumno.id.toString(),
+        alumno.idU && alumno.idU.toString(),
+        alumno.cedulaReal && alumno.cedulaReal.toString(),
+        alumno.cedula && alumno.cedula.toString()
+      ];
+      for (const key of posibles) {
+        if (key && map[key] !== undefined) {
+          return parseFloat(map[key]) || 0;
+        }
+      }
+      return 0;
+    };
+
+    const redondearPromedio = (valor) => {
+      if (!isFinite(valor)) return 0;
+      const enteroBase = Math.floor(valor);
+      const decimal = valor - enteroBase;
+      if (decimal >= 0.5) return enteroBase + 1;
+      return enteroBase;
+    };
+
+    // Mapa de puntos extra para este momento
+    const puntosExtraMap = buildPuntosExtraMap(asignacion, momento);
+
     // Crear encabezados con información real
     const nombreAula = `${aula.anio}° AÑO "${aula.seccion}"`;
     const nombreMateria = asignacion.materia?.nombre || 'MATERIA';
@@ -217,14 +267,16 @@ export async function GET(request) {
         }
       }
 
-      // Calcular definitivo como sum(nota * porcentaje / 100), limitado entre 0 y 20
+      // Calcular definitivo como sum(nota * porcentaje / 100) + puntosExtra, limitado entre 0 y 20
       let definitivo = '';
       if (registrosPromedio.length > 0) {
         const sumaPonderada = registrosPromedio.reduce((sum, item) => {
           const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
           return sum + (item.valor * (porcentaje / 100));
         }, 0);
-        const notaRedondeada = Math.round(Math.min(20, Math.max(0, sumaPonderada)));
+        const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, estudiante);
+        const baseConPuntos = Math.min(20, Math.max(0, sumaPonderada + puntosExtraAlumno));
+        const notaRedondeada = Math.min(20, Math.max(0, redondearPromedio(baseConPuntos)));
         definitivo = notaRedondeada;
       }
 
