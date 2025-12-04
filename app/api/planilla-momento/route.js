@@ -296,17 +296,17 @@ export async function GET(request) {
       { wch: 5 },   // N°
       { wch: 12 },  // CÉDULA
       { wch: 35 },  // APELLIDOS Y NOMBRES
-      { wch: 4 },   // Separación
-      { wch: 4 },   // Separación
-      { wch: 8 },   // EV1
-      { wch: 8 },   // EV2
-      { wch: 8 },   // EV3
-      { wch: 8 },   // EV4
-      { wch: 8 },   // EV5
-      { wch: 8 },   // EV6
-      { wch: 8 },   // EV7
-      { wch: 8 },   // EV8
-      { wch: 8 }    // DEF
+      { wch: 3 },   // Separación
+      { wch: 3 },   // Separación
+      { wch: 4 },   // EV1
+      { wch: 4 },   // EV2
+      { wch: 4 },   // EV3
+      { wch: 4 },   // EV4
+      { wch: 4 },   // EV5
+      { wch: 4 },   // EV6
+      { wch: 4 },   // EV7
+      { wch: 4 },   // EV8
+      { wch: 5 }    // DEF
     ];
     ws['!cols'] = colWidths;
 
