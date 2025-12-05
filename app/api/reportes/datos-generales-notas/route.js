@@ -131,10 +131,9 @@ export async function GET(request) {
       });
     }
 
-    // Obtener materias únicas en orden considerando restricciones
-    const materiasOrdenadas = materiasRestrictivasOrdenadas.length
-      ? Array.from(new Set(materiasRestrictivasOrdenadas))
-      : Array.from(new Set(materiasOrdenAula));
+    // Obtener materias únicas en orden - SIEMPRE mostrar todas las materias del aula
+    // Los estudiantes con restricciones verán "NA" en las materias que no tienen asignadas
+    const materiasOrdenadas = Array.from(new Set(materiasOrdenAula));
 
     // Obtener estudiantes desde la colección principal
     const estudiantesIds = (aula.alumnos || []).map(al => al._id?.toString()).filter(Boolean);
@@ -387,16 +386,21 @@ export async function GET(request) {
       const mes = fechaNacimiento ? fechaNacimiento.getMonth() + 1 : '';
       const anio = fechaNacimiento ? fechaNacimiento.getFullYear() : '';
 
-      // Obtener las materias asignadas del estudiante
-      let materiasAsignadas = [];
+      // Obtener las materias asignadas del estudiante (normalizadas)
+      let materiasAsignadasNormalizadas = new Set();
       let tieneRestricciones = false;
       
       if (alumno.materiasAsignadas === undefined || alumno.materiasAsignadas === null || 
           (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length === 0)) {
-        materiasAsignadas = asignacionesParaProcesar.map(asig => asig.materia?.id).filter(Boolean);
+        // Sin restricciones: el estudiante ve todas las materias
         tieneRestricciones = false;
       } else if (Array.isArray(alumno.materiasAsignadas) && alumno.materiasAsignadas.length > 0) {
-        materiasAsignadas = alumno.materiasAsignadas;
+        // Normalizar IDs de materias asignadas para comparación
+        normalizeMateriasAsignadas(alumno.materiasAsignadas).forEach((materiaId) => {
+          if (materiaId) {
+            materiasAsignadasNormalizadas.add(materiaId.toString().trim());
+          }
+        });
         tieneRestricciones = true;
       }
 
@@ -406,13 +410,26 @@ export async function GET(request) {
       for (const asig of asignacionesParaProcesar) {
         const nombreMateria = asig.materia?.nombre || 'Materia';
         const materiaId = asig.materia?.id;
+        const materiaCodigo = asig.materia?.codigo;
         
-        // Si el estudiante tiene restricciones y no tiene esta materia asignada, mostrar "NC"
-        if (tieneRestricciones && materiaId && !materiasAsignadas.includes(materiaId)) {
+        // Verificar si el estudiante tiene esta materia asignada
+        let tieneMateria = true;
+        if (tieneRestricciones && materiasAsignadasNormalizadas.size > 0) {
+          const posiblesIds = [
+            materiaId?.toString()?.trim(),
+            materiaCodigo?.toString()?.trim(),
+            asig.materia?._id?.toString()?.trim()
+          ].filter(Boolean);
+          
+          tieneMateria = posiblesIds.some(id => materiasAsignadasNormalizadas.has(id));
+        }
+        
+        // Si el estudiante tiene restricciones y no tiene esta materia asignada, mostrar "NA"
+        if (tieneRestricciones && !tieneMateria) {
           if (momentoParam === 'final') {
-            notasPorMateria[nombreMateria] = { definitiva: 'NC' };
+            notasPorMateria[nombreMateria] = { definitiva: 'NA' };
           } else {
-            notasPorMateria[nombreMateria] = { nota: 'NC' };
+            notasPorMateria[nombreMateria] = { nota: 'NA' };
           }
           continue;
         }
