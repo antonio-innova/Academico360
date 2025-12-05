@@ -3,6 +3,64 @@ import { connectDB } from '@/database/db';
 import Aula from '@/database/models/Aula';
 import Estudiante from '@/database/models/Estudiante';
 
+// Función para ordenar materias asegurando que Biología aparezca después de Educación Física
+const ordenarMaterias = (items) => {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  
+  const normalizar = (texto) => {
+    if (!texto) return '';
+    return String(texto).toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+  
+  // Función para obtener el nombre de la materia
+  const obtenerNombreMateria = (item) => {
+    // Si es un objeto con propiedad materia
+    if (item && typeof item === 'object' && item.materia) {
+      return item.materia.nombre || '';
+    }
+    // Si es un string directamente
+    if (typeof item === 'string') {
+      return item;
+    }
+    return '';
+  };
+  
+  // Crear copia del array para no modificar el original
+  const itemsOrdenados = [...items];
+  
+  // Encontrar índices de Educación Física y Biología
+  let indiceEF = -1;
+  let indiceBiologia = -1;
+  
+  itemsOrdenados.forEach((item, index) => {
+    const nombreMateria = obtenerNombreMateria(item);
+    const nombreNormalizado = normalizar(nombreMateria);
+    if (nombreNormalizado.includes('educacion') && nombreNormalizado.includes('fisica')) {
+      indiceEF = index;
+    }
+    if (nombreNormalizado.includes('biologia') || nombreNormalizado.includes('biología')) {
+      indiceBiologia = index;
+    }
+  });
+  
+  // Si ambas existen, asegurar que Biología esté inmediatamente después de Educación Física
+  if (indiceEF !== -1 && indiceBiologia !== -1) {
+    // Si Biología no está inmediatamente después de Educación Física, reorganizar
+    if (indiceBiologia !== indiceEF + 1) {
+      // Remover Biología de su posición actual
+      const biologia = itemsOrdenados.splice(indiceBiologia, 1)[0];
+      // Ajustar índice de EF si Biología estaba antes de EF
+      if (indiceBiologia < indiceEF) {
+        indiceEF--;
+      }
+      // Insertar Biología inmediatamente después de Educación Física
+      itemsOrdenados.splice(indiceEF + 1, 0, biologia);
+    }
+  }
+  
+  return itemsOrdenados;
+};
+
 const normalizeMateriasAsignadas = (materias) => {
   if (!materias) return [];
   const baseArray = Array.isArray(materias)
@@ -47,6 +105,9 @@ export async function GET(request) {
     }
 
     const asignacionesAula = Array.isArray(aula.asignaciones) ? aula.asignaciones : [];
+    
+    // Ordenar asignaciones (Biología después de Educación Física)
+    const asignacionesOrdenadas = ordenarMaterias(asignacionesAula);
 
     const normalizarClaveMateria = (nombre = '') =>
       nombre
@@ -76,7 +137,7 @@ export async function GET(request) {
       return Boolean(nombre || apellido);
     };
 
-    const asignacionesActivas = asignacionesAula.filter((asignacion) => {
+    const asignacionesActivas = asignacionesOrdenadas.filter((asignacion) => {
       const nombreMateria = asignacion?.materia?.nombre;
       if (!nombreMateria) return false;
       if (asignacionTieneProfesor(asignacion)) return true;
@@ -133,7 +194,8 @@ export async function GET(request) {
 
     // Obtener materias únicas en orden - SIEMPRE mostrar todas las materias del aula
     // Los estudiantes con restricciones verán "NA" en las materias que no tienen asignadas
-    const materiasOrdenadas = Array.from(new Set(materiasOrdenAula));
+    // Ordenar las materias (Biología después de Educación Física)
+    const materiasOrdenadas = ordenarMaterias(Array.from(new Set(materiasOrdenAula)));
 
     // Obtener estudiantes desde la colección principal
     const estudiantesIds = (aula.alumnos || []).map(al => al._id?.toString()).filter(Boolean);

@@ -19,6 +19,67 @@ function convertirNotaAlfabetica(nota) {
 
 const DEFAULT_TEXT_CALIFICACION = 'NC';
 
+// Función para ordenar materias asegurando que Biología aparezca después de Educación Física
+const ordenarMaterias = (items, obtenerNombre = null) => {
+  if (!Array.isArray(items) || items.length === 0) return items;
+  
+  const normalizar = (texto) => {
+    if (!texto) return '';
+    return String(texto).toLowerCase().trim().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
+  };
+  
+  // Función para obtener el nombre de la materia
+  const obtenerNombreMateria = (item) => {
+    if (obtenerNombre && typeof obtenerNombre === 'function') {
+      return obtenerNombre(item) || '';
+    }
+    // Si es un objeto con propiedad materia
+    if (item && typeof item === 'object' && item.materia) {
+      return item.materia.nombre || '';
+    }
+    // Si es un string directamente
+    if (typeof item === 'string') {
+      return item;
+    }
+    return '';
+  };
+  
+  // Crear copia del array para no modificar el original
+  const itemsOrdenados = [...items];
+  
+  // Encontrar índices de Educación Física y Biología
+  let indiceEF = -1;
+  let indiceBiologia = -1;
+  
+  itemsOrdenados.forEach((item, index) => {
+    const nombreMateria = obtenerNombreMateria(item);
+    const nombreNormalizado = normalizar(nombreMateria);
+    if (nombreNormalizado.includes('educacion') && nombreNormalizado.includes('fisica')) {
+      indiceEF = index;
+    }
+    if (nombreNormalizado.includes('biologia') || nombreNormalizado.includes('biología')) {
+      indiceBiologia = index;
+    }
+  });
+  
+  // Si ambas existen, asegurar que Biología esté inmediatamente después de Educación Física
+  if (indiceEF !== -1 && indiceBiologia !== -1) {
+    // Si Biología no está inmediatamente después de Educación Física, reorganizar
+    if (indiceBiologia !== indiceEF + 1) {
+      // Remover Biología de su posición actual
+      const biologia = itemsOrdenados.splice(indiceBiologia, 1)[0];
+      // Ajustar índice de EF si Biología estaba antes de EF
+      if (indiceBiologia < indiceEF) {
+        indiceEF--;
+      }
+      // Insertar Biología inmediatamente después de Educación Física
+      itemsOrdenados.splice(indiceEF + 1, 0, biologia);
+    }
+  }
+  
+  return itemsOrdenados;
+};
+
 const normalizeMateriasAsignadas = (materias) => {
   if (!materias) return [];
   const baseArray = Array.isArray(materias)
@@ -87,8 +148,8 @@ export async function GET(request) {
       });
     });
 
-    // Obtener las asignaciones
-    const asignaciones = aulaData.asignaciones || [];
+    // Obtener las asignaciones y ordenarlas (Biología después de Educación Física)
+    const asignaciones = ordenarMaterias(aulaData.asignaciones || []);
 
     // Inicializar el objeto de calificaciones para todos los estudiantes
     const calificacionesPorMateria = {};
@@ -374,7 +435,7 @@ export async function GET(request) {
 
     // Para cada estudiante, asegurar que TODAS las materias del aula aparezcan en el boletín
     // Si el estudiante tiene la materia asignada → mostrar notas
-    // Si el estudiante NO tiene la materia asignada → mostrar "AP" (No Aplica)
+    // Si el estudiante NO tiene la materia asignada → mostrar "NC" (No Cursante)
     estudiantesFiltrados.forEach(estudiante => {
       const estudianteId = estudiante._id ? estudiante._id.toString() : estudiante.id || estudiante.cedula;
       
@@ -499,7 +560,7 @@ export async function GET(request) {
           console.log(`📋 Estudiante ${estudiante.nombre} ${estudiante.apellido}: Array vacío en reporte, no verá ninguna materia`);
         }
         
-        // Obtener todas las calificaciones (incluyendo las marcadas como "AP")
+        // Obtener todas las calificaciones (incluyendo las marcadas como "NC")
         let calificacionesEstudiante = calificacionesPorMateria[estudianteId] || [];
         
         // Ordenar las calificaciones según el orden de las asignaciones en el aula
@@ -532,7 +593,7 @@ export async function GET(request) {
           return nombreA.localeCompare(nombreB);
         });
         
-        console.log(`📋 Calificaciones para ${estudiante.nombre} ${estudiante.apellido}: ${calificacionesEstudiante.length} materias (incluyendo "AP") en orden del aula`);
+        console.log(`📋 Calificaciones para ${estudiante.nombre} ${estudiante.apellido}: ${calificacionesEstudiante.length} materias (incluyendo "NC") en orden del aula`);
         
         // Buscar la información completa del estudiante en la colección Estudiante
         let cedula = 'N/D';
@@ -886,7 +947,7 @@ export async function GET(request) {
           color: negro
         });
 
-        // Nota 2do Momento (mostrar "-" si el boletín es del 1er momento o no hay nota, "AP" si no aplica)
+        // Nota 2do Momento (mostrar "-" si el boletín es del 1er momento o no hay nota, "NC" si no aplica)
         let nota2 = '-';
         if (calificacion.noAplica) {
           nota2 = DEFAULT_TEXT_CALIFICACION;
@@ -901,7 +962,7 @@ export async function GET(request) {
           color: negro
         });
 
-        // Nota 3er Momento (mostrar "-" si el boletín es del 1er o 2do momento o no hay nota, "AP" si no aplica)
+        // Nota 3er Momento (mostrar "-" si el boletín es del 1er o 2do momento o no hay nota, "NC" si no aplica)
         let nota3 = '-';
         if (calificacion.noAplica) {
           nota3 = DEFAULT_TEXT_CALIFICACION;
@@ -916,7 +977,7 @@ export async function GET(request) {
           color: negro
         });
 
-        // Calificación Final (mostrar "-" si no es momento 3, "AP" si no aplica)
+        // Calificación Final (mostrar "-" si no es momento 3, "NC" si no aplica)
         let notaFinal = '-';
         let colorNota = negro;
         
@@ -927,7 +988,7 @@ export async function GET(request) {
           
           colorNota = calificacion.calificacion < 10 ? rgb(0.8, 0, 0) : verde;
 
-          // Acumular para promedio (solo si no es "AP")
+          // Acumular para promedio (solo si no es "NC")
           if (!isNaN(calificacion.calificacion)) {
             sumaTotalCalificaciones += calificacion.calificacion;
             totalMaterias++;
