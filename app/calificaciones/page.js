@@ -867,7 +867,7 @@ function CalificacionesContent() {
           if (!item) return '';
           if (typeof item === 'object') {
             return String(item.id || item.codigo || item.value || '').trim();
-          }
+        }
           return String(item).trim();
         }).filter(Boolean);
       };

@@ -158,12 +158,12 @@ export async function GET(request) {
         (alumno.cedula && alumno.cedula.toString()) ||
         '';
 
-      return {
+          return {
         ...base,
         _id,
         cedulaReal,
         nombreCompleto
-      };
+          };
     });
 
     // Ordenar estudiantes por cédula
@@ -289,7 +289,7 @@ export async function GET(request) {
       for (let i = 0; i < maxActividades; i++) {
         if (i < actividadesMomento.length) {
           const actividad = actividadesMomento[i];
-          const calificacion = actividad.calificaciones?.find(c =>
+          const calificacion = actividad.calificaciones?.find(c => 
             c.alumnoId === estudiante._id.toString()
           );
 

@@ -80,7 +80,7 @@ export async function GET(request) {
     }
 
     const asignacionesAula = Array.isArray(aula.asignaciones) ? aula.asignaciones : [];
-    
+
     // Ordenar asignaciones (Biología después de Educación Física)
     const asignacionesOrdenadas = ordenarMaterias(asignacionesAula);
 
@@ -341,14 +341,16 @@ export async function GET(request) {
           }
         }
 
+
+        
         if (registrosPromedio.length === 0) {
           detallePorMateria[nombreMateria] = { ev, nf: '' };
         } else {
           // TODAS las materias usan la misma fórmula: suma directa de nota * porcentaje/100
           const promedioBase = registrosPromedio.reduce((sum, item) => {
-            const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
+              const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
             return sum + (item.valor * (porcentaje / 100));
-          }, 0);
+            }, 0);
           const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
           const promedioConPuntos = Math.min(20, Math.max(0, promedioBase + puntosExtraAlumno));
           const nfFinal = Math.min(20, Math.max(0, redondearPromedio(promedioConPuntos)));
