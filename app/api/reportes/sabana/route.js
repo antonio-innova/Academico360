@@ -269,8 +269,34 @@ export async function GET(request) {
           I: 1
         };
 
+        const normalizarCedula = (valor = '') => {
+          const soloDigitos = String(valor || '').replace(/\D/g, '');
+          if (!soloDigitos) return '';
+          const sinCeros = soloDigitos.replace(/^0+/, '');
+          return sinCeros || '0';
+        };
+
+        const posiblesIdsAlumno = [
+          estudianteId,
+          alumno.id && alumno.id.toString(),
+          alumno.idU && alumno.idU.toString(),
+          alumno.cedula && alumno.cedula.toString()
+        ].filter(Boolean);
+
+        const posiblesIdsNormalizados = posiblesIdsAlumno
+          .map(normalizarCedula)
+          .filter(Boolean);
+
+        const coincideAlumno = (cal) => {
+          const val = cal?.alumnoId;
+          const str = val?.toString ? val.toString() : String(val);
+          if (posiblesIdsAlumno.includes(str)) return true;
+          const norm = normalizarCedula(str);
+          return norm && posiblesIdsNormalizados.includes(norm);
+        };
+
         for (const act of actsMomento) {
-          const cal = (act.calificaciones || []).find(c => (c.alumnoId?.toString?.() || String(c.alumnoId)) === estudianteId);
+          const cal = (act.calificaciones || []).find(coincideAlumno);
           const porcentaje = parseFloat(act.porcentaje) || 0;
           let literal = '';
           let valorNumerico = null;
@@ -317,14 +343,8 @@ export async function GET(request) {
 
         if (registrosPromedio.length === 0) {
           detallePorMateria[nombreMateria] = { ev, nf: '' };
-        } else if (esNoCuantitativa(nombreMateria)) {
-          const ultimo = registrosPromedio[registrosPromedio.length - 1]?.valor;
-          const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
-          const promedioConPuntos = Math.min(20, Math.max(0, ultimo + puntosExtraAlumno));
-          detallePorMateria[nombreMateria] = { ev, nf: entero(promedioConPuntos) };
         } else {
-          // Misma regla que en aulas y boletín:
-          // notaMomento = sum(valor * porcentaje/100) + puntosExtra (tope 20)
+          // TODAS las materias usan la misma fórmula: suma directa de nota * porcentaje/100
           const promedioBase = registrosPromedio.reduce((sum, item) => {
             const porcentaje = item.porcentaje > 0 ? item.porcentaje : 0;
             return sum + (item.valor * (porcentaje / 100));

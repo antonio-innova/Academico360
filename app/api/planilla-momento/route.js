@@ -97,25 +97,74 @@ export async function GET(request) {
       excluidos: (aula.alumnos?.length || 0) - alumnosFiltrados.length
     });
     
-    // Obtener datos completos de los estudiantes ordenados por cédula
-    const estudiantesCompletos = await Promise.all(
-      alumnosFiltrados.map(async (alumno) => {
-        try {
-          const estudiante = await Estudiante.findById(alumno._id);
-          return {
-            ...alumno.toObject(),
-            cedulaReal: estudiante?.idU || estudiante?.cedula || 'N/P',
-            nombreCompleto: `${estudiante?.apellido || alumno.apellido || ''} ${estudiante?.nombre || alumno.nombre || ''}`.trim()
-          };
-        } catch (error) {
-          return {
-            ...alumno.toObject(),
-            cedulaReal: 'N/P',
-            nombreCompleto: `${alumno.apellido || ''} ${alumno.nombre || ''}`.trim()
-          };
-        }
-      })
-    );
+    // Obtener datos completos de los estudiantes ordenados por cédula (lookup masivo y con fallback)
+    const normalizarCedula = (valor = '') => {
+      const soloDigitos = String(valor || '').replace(/\D/g, '');
+      if (!soloDigitos) return '';
+      const sinCeros = soloDigitos.replace(/^0+/, '');
+      return sinCeros || '0';
+    };
+
+    const alumnosIds = alumnosFiltrados.map(al => al._id?.toString()).filter(Boolean);
+    const alumnosCedulas = alumnosFiltrados
+      .map(al => al.idU || al.cedula)
+      .filter(Boolean)
+      .map(String);
+
+    const estudiantesDocs = await Estudiante.find({
+      $or: [
+        { _id: { $in: alumnosIds } },
+        { idU: { $in: alumnosCedulas } }
+      ]
+    }).lean();
+
+    const idToInfo = new Map(estudiantesDocs.map(e => [e._id.toString(), e]));
+    const idUToInfo = new Map(estudiantesDocs.map(e => [(e.idU || '').toString(), e]));
+    const idUNormalizedToInfo = new Map();
+    estudiantesDocs.forEach((e) => {
+      const raw = (e.idU || e.cedula || '').toString();
+      const norm = normalizarCedula(raw);
+      if (norm) {
+        idUNormalizedToInfo.set(norm, e);
+      }
+    });
+
+    const estudiantesCompletos = alumnosFiltrados.map((alumno) => {
+      const base = alumno.toObject ? alumno.toObject() : { ...alumno };
+      const idStr = alumno._id?.toString();
+      const cedulaStr = (alumno.idU || alumno.cedula || '').toString();
+      const cedulaNorm = normalizarCedula(cedulaStr);
+
+      const doc =
+        (idStr && idToInfo.get(idStr)) ||
+        (cedulaStr && idUToInfo.get(cedulaStr)) ||
+        (cedulaNorm && idUNormalizedToInfo.get(cedulaNorm)) ||
+        null;
+
+      const cedulaReal =
+        doc?.idU ||
+        doc?.cedula ||
+        alumno.idU ||
+        alumno.cedula ||
+        'N/P';
+
+      const nombreCompleto = `${(doc?.apellido || alumno.apellido || '').trim()} ${(doc?.nombre || alumno.nombre || '').trim()}`.trim();
+
+      const _id =
+        (doc?._id && doc._id.toString()) ||
+        (alumno._id && alumno._id.toString()) ||
+        (alumno.id && alumno.id.toString()) ||
+        (alumno.idU && alumno.idU.toString()) ||
+        (alumno.cedula && alumno.cedula.toString()) ||
+        '';
+
+      return {
+        ...base,
+        _id,
+        cedulaReal,
+        nombreCompleto
+      };
+    });
 
     // Ordenar estudiantes por cédula
     const estudiantesOrdenados = estudiantesCompletos.sort((a, b) => {
