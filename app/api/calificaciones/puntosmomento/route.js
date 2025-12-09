@@ -1,154 +1,145 @@
 import { NextResponse } from 'next/server';
 import { ObjectId } from 'mongodb';
-import { cookies } from 'next/headers';
 import dbConnection from '../../../../database/db';
 import Aula from '../../../../database/models/Aula';
 
 export async function POST(request) {
   try {
-    // Verificar permisos - solo control de estudios puede modificar puntos extras
-    const cookieStore = cookies();
-    const userType = cookieStore.get('userType')?.value;
-    
-    if (userType !== 'control') {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Acceso denegado. Solo el control de estudios puede modificar puntos extras.' 
-      }, { status: 403 });
-    }
-    
-    // Obtener los datos del cuerpo de la solicitud
+    console.log('🟢 API - Recibiendo solicitud POST a /api/calificaciones/puntosmomento');
     const { puntos, aulaId, materiaId, momento, alumnoId } = await request.json();
-    
-    // Validar que se hayan enviado los datos necesarios
+    console.log('🟢 API - Datos recibidos:', { puntos, aulaId, materiaId, momento, alumnoId });
+
+    // Validaciones básicas
     if (puntos === undefined || puntos === null || !aulaId || !materiaId || !momento || !alumnoId) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Datos incompletos o inválidos' 
+      console.error('🔴 API - Datos incompletos');
+
+      return NextResponse.json({
+        success: false,
+        message: 'Datos incompletos o inválidos'
       }, { status: 400 });
     }
-    
-    // Validar que el momento sea válido
+
     if (!['momento1', 'momento2', 'momento3'].includes(momento)) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Momento inválido. Debe ser momento1, momento2 o momento3' 
+      console.error('🔴 API - Momento inválido:', momento);
+      return NextResponse.json({
+        success: false,
+        message: 'Momento inválido. Debe ser momento1, momento2 o momento3'
       }, { status: 400 });
     }
-    
-    // Validar que los puntos estén en el rango permitido
+
     if (isNaN(puntos) || puntos < 0 || puntos > 2) {
-      return NextResponse.json({ 
-        success: false, 
-        message: 'Los puntos deben ser un número entre 0 y 2' 
+      console.error('🔴 API - Puntos fuera de rango:', puntos);
+      return NextResponse.json({
+        success: false,
+        message: 'Los puntos deben ser un número entre 0 y 2'
       }, { status: 400 });
     }
-    
-    // Conectar a MongoDB
+
+    console.log('🟢 API - Conectando a la base de datos...');
     await dbConnection.connectDB();
-    
-    // Preparar el punto a actualizar
+    console.log('🟢 API - Conectado a la base de datos');
+
+    // Convertir aulaId a ObjectId si es necesario
+    let aulaObjectId;
+    try {
+      aulaObjectId = typeof aulaId === 'string' ? new ObjectId(aulaId) : aulaId;
+      console.log('🟢 API - AulaId convertido:', { original: aulaId, convertido: aulaObjectId });
+    } catch (error) {
+      console.error('🔴 API - Error al convertir aulaId a ObjectId:', error);
+      return NextResponse.json({
+        success: false,
+        message: 'ID de aula inválido'
+      }, { status: 400 });
+    }
+
     const puntoDatos = {
       alumnoId: alumnoId.toString(),
       puntos: Number(puntos),
       fechaActualizacion: new Date()
     };
-    
-    // Usar findOneAndUpdate con operadores atómicos para evitar problemas de concurrencia
-    const resultado = await Aula.findOneAndUpdate(
-      { 
-        _id: aulaId,
+    console.log('🟢 API - Datos preparados para guardar:', puntoDatos);
+
+    // ESTRATEGIA NUEVA: Primero inicializar la estructura si no existe
+    console.log('🟢 API - Asegurando que existe la estructura puntosPorMomento...');
+    await Aula.updateOne(
+      {
+        _id: aulaObjectId,
         "asignaciones.materia.id": materiaId,
-        [`asignaciones.puntosPorMomento.${momento}.alumnoId`]: alumnoId
+        "asignaciones.puntosPorMomento": { $exists: false }
       },
-      { 
-        $set: { 
-          [`asignaciones.$[asig].puntosPorMomento.${momento}.$[punto]`]: puntoDatos 
+      {
+        $set: {
+          "asignaciones.$[asig].puntosPorMomento": {
+            momento1: [],
+            momento2: [],
+            momento3: []
+          }
         }
       },
       {
-        arrayFilters: [
-          { "asig.materia.id": materiaId },
-          { "punto.alumnoId": alumnoId }
-        ],
+        arrayFilters: [{ "asig.materia.id": materiaId }]
+      }
+    );
+
+    // Paso 1: Eliminar cualquier registro existente del alumno en este momento
+    console.log('🟢 API - Eliminando registro existente del alumno (si existe)...');
+    await Aula.updateOne(
+      {
+        _id: aulaObjectId,
+        "asignaciones.materia.id": materiaId
+      },
+      {
+        $pull: {
+          [`asignaciones.$[asig].puntosPorMomento.${momento}`]: {
+            alumnoId: alumnoId.toString()
+          }
+        }
+      },
+      {
+        arrayFilters: [{ "asig.materia.id": materiaId }]
+      }
+    );
+    console.log('✅ API - Registro existente eliminado (si existía)');
+
+    // Paso 2: Agregar el nuevo registro
+    console.log('🟢 API - Agregando nuevo registro de puntos...');
+    const resultado = await Aula.findOneAndUpdate(
+      {
+        _id: aulaObjectId,
+        "asignaciones.materia.id": materiaId
+      },
+      {
+        $push: {
+          [`asignaciones.$[asig].puntosPorMomento.${momento}`]: puntoDatos
+        }
+      },
+      {
+        arrayFilters: [{ "asig.materia.id": materiaId }],
         new: true
       }
     );
     
-    // Si no se actualizó ningún documento (el alumno no tenía puntos previos)
-    if (!resultado) {
-      // Intentar agregar un nuevo punto
-      const resultadoNuevo = await Aula.findOneAndUpdate(
-        { 
-          _id: aulaId,
-          "asignaciones.materia.id": materiaId
-        },
-        { 
-          $push: { 
-            [`asignaciones.$[asig].puntosPorMomento.${momento}`]: puntoDatos 
-          }
-        },
-        {
-          arrayFilters: [
-            { "asig.materia.id": materiaId }
-          ],
-          new: true,
-          upsert: true
-        }
-      );
-      
-      // Si aún no se actualizó, es posible que no exista la estructura puntosPorMomento
-      if (!resultadoNuevo) {
-        // Inicializar la estructura puntosPorMomento
-        await Aula.findOneAndUpdate(
-          { 
-            _id: aulaId,
-            "asignaciones.materia.id": materiaId
-          },
-          { 
-            $set: { 
-              [`asignaciones.$[asig].puntosPorMomento`]: {
-                momento1: [],
-                momento2: [],
-                momento3: []
-              }
-            }
-          },
-          {
-            arrayFilters: [
-              { "asig.materia.id": materiaId }
-            ]
-          }
-        );
-        
-        // Ahora agregar el punto
-        await Aula.findOneAndUpdate(
-          { 
-            _id: aulaId,
-            "asignaciones.materia.id": materiaId
-          },
-          { 
-            $push: { 
-              [`asignaciones.$[asig].puntosPorMomento.${momento}`]: puntoDatos 
-            }
-          },
-          {
-            arrayFilters: [
-              { "asig.materia.id": materiaId }
-            ]
-          }
-        );
-      }
+    if (resultado) {
+      const asignacion = resultado.asignaciones?.find(a => a.materia?.id === materiaId);
+      console.log('✅ API - Punto agregado exitosamente');
+      console.log('✅ API - Aula ID:', resultado._id);
+      console.log('✅ API - puntosPorMomento después de agregar:', asignacion?.puntosPorMomento);
+      console.log('✅ API - Datos del momento actual:', asignacion?.puntosPorMomento?.[momento]);
+    } else {
+      console.error('🔴 API - No se pudo agregar el punto');
     }
-    
-    // Devolver respuesta exitosa
-    return NextResponse.json({ 
-      success: true, 
+
+    console.log('✅ API - Guardado completado exitosamente');
+    return NextResponse.json({
+      success: true,
       message: `Puntos extras para ${momento} actualizados correctamente`
     });
-    
+
   } catch (error) {
-    console.error('Error al guardar puntos extras por momento:', error);
+    console.error('🔴 API - ERROR al guardar puntos extras:', error);
+    console.error('🔴 API - Tipo de error:', error.name);
+    console.error('🔴 API - Mensaje:', error.message);
+    console.error('🔴 API - Stack:', error.stack);
     return NextResponse.json({ 
       success: false, 
       message: 'Error al procesar la solicitud: ' + error.message 
@@ -158,14 +149,19 @@ export async function POST(request) {
 
 export async function GET(request) {
   try {
+    console.log('🟢 API GET - Recibiendo solicitud GET a /api/calificaciones/puntosmomento');
+    
     // Obtener parámetros de la URL
     const { searchParams } = new URL(request.url);
     const aulaId = searchParams.get('aulaId');
     const materiaId = searchParams.get('materiaId');
     const momento = searchParams.get('momento');
     
+    console.log('🟢 API GET - Parámetros:', { aulaId, materiaId, momento });
+    
     // Validar que se hayan enviado los datos necesarios
     if (!aulaId || !materiaId || !momento) {
+      console.error('🔴 API GET - Parámetros incompletos');
       return NextResponse.json({ 
         success: false, 
         message: 'Parámetros incompletos' 
@@ -174,6 +170,7 @@ export async function GET(request) {
     
     // Validar que el momento sea válido
     if (!['momento1', 'momento2', 'momento3'].includes(momento)) {
+      console.error('🔴 API GET - Momento inválido:', momento);
       return NextResponse.json({ 
         success: false, 
         message: 'Momento inválido. Debe ser momento1, momento2 o momento3' 
@@ -181,40 +178,60 @@ export async function GET(request) {
     }
     
     // Conectar a MongoDB
+    console.log('🟢 API GET - Conectando a la base de datos...');
     await dbConnection.connectDB();
     
     // Buscar el aula
-    const aula = await Aula.findById(aulaId);
+    console.log('🟢 API GET - Buscando aula:', aulaId);
+    const aula = await Aula.findById(aulaId).lean();
     if (!aula) {
+      console.error('🔴 API GET - Aula no encontrada');
       return NextResponse.json({ 
         success: false, 
         message: 'Aula no encontrada' 
       }, { status: 404 });
     }
+    console.log('🟢 API GET - Aula encontrada');
     
     // Buscar la asignación correspondiente a la materia
+    console.log('🟢 API GET - Buscando asignación para materia:', materiaId);
+    console.log('🟢 API GET - Asignaciones disponibles:', aula.asignaciones?.map(a => a.materia?.id));
+    
     const asignacion = aula.asignaciones.find(asig => 
-      asig.materia.id.toString() === materiaId.toString()
+      asig.materia?.id?.toString() === materiaId.toString()
     );
     
     if (!asignacion) {
+      console.error('🔴 API GET - Asignación no encontrada para la materia');
       return NextResponse.json({ 
         success: false, 
         message: 'Asignación no encontrada para la materia especificada' 
       }, { status: 404 });
     }
+    console.log('🟢 API GET - Asignación encontrada');
     
     // Verificar si la asignación tiene la estructura puntosPorMomento
+    console.log('🟢 API GET - Verificando puntosPorMomento...');
+    console.log('🟢 API GET - puntosPorMomento existe?', !!asignacion.puntosPorMomento);
+    console.log('🟢 API GET - puntosPorMomento:', asignacion.puntosPorMomento);
+    console.log('🟢 API GET - momento específico existe?', !!asignacion.puntosPorMomento?.[momento]);
+    console.log('🟢 API GET - datos del momento:', asignacion.puntosPorMomento?.[momento]);
+    
     if (!asignacion.puntosPorMomento || !asignacion.puntosPorMomento[momento]) {
-      // Si no existe, devolver array vacío
+      console.log('🟡 API GET - No hay puntos guardados para este momento, devolviendo array vacío');
       return NextResponse.json([]);
     }
     
     // Devolver directamente el array de puntos para el momento específico
-    return NextResponse.json(asignacion.puntosPorMomento[momento]);
+    const puntos = asignacion.puntosPorMomento[momento];
+    console.log('✅ API GET - Devolviendo puntos:', puntos);
+    return NextResponse.json(puntos);
     
   } catch (error) {
-    console.error('Error al obtener puntos extras por momento:', error);
+    console.error('🔴 API GET - ERROR:', error);
+    console.error('🔴 API GET - Tipo:', error.name);
+    console.error('🔴 API GET - Mensaje:', error.message);
+    console.error('🔴 API GET - Stack:', error.stack);
     return NextResponse.json({ 
       success: false, 
       message: 'Error al obtener puntos extras: ' + error.message 

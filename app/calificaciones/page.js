@@ -393,17 +393,23 @@ function CalificacionesContent() {
   // Función para guardar los puntos extras por momento
   const guardarPuntosMomento = async (momento) => {
     try {
+      console.log('🔵 INICIO - Guardando puntos extras para momento:', momento);
+      console.log('🔵 esControl():', esControl());
+      
       setGuardandoPuntosMomento(true);
       setMensajePuntosMomento(null);
       
-      console.log('Iniciando guardado de puntos extras para momento:', momento);
+      console.log('🔵 Iniciando guardado de puntos extras para momento:', momento);
       
       // Verificar que aulaId y materiaId estén definidos
       if (!aulaId || !materiaId) {
-        throw new Error('ID de aula o materia no disponible');
+        const errorMsg = 'ID de aula o materia no disponible';
+        console.error('🔴 ERROR:', errorMsg);
+        alert(errorMsg);
+        throw new Error(errorMsg);
       }
       
-      console.log('Verificando parámetros:', { aulaId, materiaId, momento });
+      console.log('🔵 Verificando parámetros:', { aulaId, materiaId, momento });
       
       // Seleccionar el estado correcto según el momento
       let puntosPorAlumno;
@@ -411,18 +417,25 @@ function CalificacionesContent() {
       switch(momento) {
         case 'momento1':
           puntosPorAlumno = puntosMomento1;
+          console.log('🔵 Puntos del momento 1:', puntosPorAlumno);
           break;
         case 'momento2':
           puntosPorAlumno = puntosMomento2;
+          console.log('🔵 Puntos del momento 2:', puntosPorAlumno);
           break;
         case 'momento3':
           puntosPorAlumno = puntosMomento3;
+          console.log('🔵 Puntos del momento 3:', puntosPorAlumno);
           break;
         default:
-          throw new Error('Momento inválido');
+          const errorMsg = 'Momento inválido';
+          console.error('🔴 ERROR:', errorMsg);
+          alert(errorMsg);
+          throw new Error(errorMsg);
       }
       
-      console.log(`Frontend - Guardando puntos extras para ${momento}:`, puntosPorAlumno);
+      console.log(`🔵 Frontend - Guardando puntos extras para ${momento}:`, puntosPorAlumno);
+      console.log(`🔵 Número de alumnos con puntos:`, Object.keys(puntosPorAlumno).length);
       
       // Guardar los puntos para cada alumno
       const promesasGuardado = Object.entries(puntosPorAlumno).map(async ([alumnoId, puntos]) => {
@@ -436,15 +449,15 @@ function CalificacionesContent() {
           return { success: false, message: `Puntos inválidos para alumno ${alumnoIdStr}` };
         }
         
-        console.log(`Frontend - Guardando punto para alumno ID: ${alumnoIdStr}, puntos: ${puntosNum}`);
+        console.log(`🔵 Frontend - Guardando punto para alumno ID: ${alumnoIdStr}, puntos: ${puntosNum}`);
         
         // Verificar que todos los datos estén presentes y sean válidos
         if (!aulaId || !materiaId || !momento || !alumnoIdStr) {
-          console.error('Datos incompletos para guardar puntos extras:', { aulaId, materiaId, momento, alumnoIdStr });
+          console.error('🔴 Datos incompletos para guardar puntos extras:', { aulaId, materiaId, momento, alumnoIdStr });
           return { success: false, message: 'Datos incompletos para guardar puntos extras' };
         }
         
-        console.log('Datos a enviar:', {
+        console.log('🔵 Datos a enviar a la API:', {
           puntos: puntosNum,
           aulaId,
           materiaId,
@@ -453,6 +466,7 @@ function CalificacionesContent() {
         });
         
         try {
+          console.log('🔵 Enviando petición POST a /api/calificaciones/puntosmomento...');
           const response = await fetch('/api/calificaciones/puntosmomento', {
             method: 'POST',
             headers: {
@@ -467,39 +481,55 @@ function CalificacionesContent() {
             })
           });
           
+          console.log('🔵 Respuesta recibida, status:', response.status);
+          
           if (!response.ok) {
             const error = await response.json();
-            console.error('Error en respuesta:', error);
+            console.error('🔴 Error en respuesta:', error);
+            console.error('🔴 Status:', response.status);
+            console.error('🔴 Message:', error.message);
             return { success: false, message: error.message || 'Error al guardar puntos extras' };
           }
           
           const resultado = await response.json();
-          console.log(`Resultado guardado para alumno ${alumnoIdStr}:`, resultado);
+          console.log(`✅ Resultado guardado para alumno ${alumnoIdStr}:`, resultado);
           return resultado;
         } catch (error) {
-          console.error(`Error al guardar puntos para alumno ${alumnoIdStr}:`, error);
+          console.error(`🔴 Error al guardar puntos para alumno ${alumnoIdStr}:`, error);
+          console.error('🔴 Tipo de error:', error.name);
+          console.error('🔴 Mensaje:', error.message);
+          console.error('🔴 Stack:', error.stack);
           return { success: false, message: `Error: ${error.message}` };
         }
       });
       
       // Usar Promise.allSettled en lugar de Promise.all para manejar mejor los errores
       const resultados = await Promise.allSettled(promesasGuardado);
-      console.log('Resultados de guardado de puntos extras:', resultados);
+      console.log('🔵 Resultados de guardado de puntos extras:', resultados);
       
       // Contar éxitos y errores
       const exitos = resultados.filter(r => r.status === 'fulfilled' && r.value?.success).length;
       const errores = resultados.filter(r => r.status === 'rejected' || !r.value?.success).length;
       
+      console.log(`🔵 Resumen: ${exitos} éxitos, ${errores} errores`);
+      
       if (errores > 0) {
-        console.error('Errores al guardar puntos extras:', resultados.filter(r => r.status === 'rejected' || !r.value?.success));
+        const errorDetails = resultados.filter(r => r.status === 'rejected' || !r.value?.success);
+        console.error('🔴 Errores al guardar puntos extras:', errorDetails);
+        const mensajeError = `Guardado parcial: ${exitos} éxitos, ${errores} errores`;
+        console.error('🔴', mensajeError);
+        alert(mensajeError + '\n\nMira la consola para más detalles.');
         setMensajePuntosMomento({
-          tipo: 'warning',
-          texto: `Guardado parcial: ${exitos} éxitos, ${errores} errores`
+          tipo: 'error',
+          texto: mensajeError
         });
       } else {
+        const mensajeExito = `Puntos extras para ${momento} guardados correctamente (${exitos} alumnos)`;
+        console.log('✅', mensajeExito);
+        alert(mensajeExito);
         setMensajePuntosMomento({
           tipo: 'success',
-          texto: `Puntos extras para ${momento} guardados correctamente (${exitos} alumnos)`
+          texto: mensajeExito
         });
       }
       
@@ -632,7 +662,12 @@ function CalificacionesContent() {
       }, 3000);
       
     } catch (error) {
-      console.error('Error al guardar puntos extras por momento:', error);
+      console.error('🔴 ERROR GENERAL al guardar puntos extras:', error);
+      console.error('🔴 Tipo:', error.name);
+      console.error('🔴 Mensaje:', error.message);
+      console.error('🔴 Stack:', error.stack);
+      const mensajeError = 'Error al guardar los puntos extras: ' + error.message;
+      alert(mensajeError);
       setMensajePuntosMomento({
         tipo: 'error',
         texto: `Error al guardar: ${error.message}`
