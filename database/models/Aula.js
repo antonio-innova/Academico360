@@ -85,6 +85,21 @@ const aulaSchema = new mongoose.Schema({
         default: ''
       }
     },
+    // Objeto para controlar el bloqueo de momentos (previene subir notas pero no afecta reportes)
+    momentosBloqueados: {
+      1: {
+        type: Boolean,
+        default: false
+      },
+      2: {
+        type: Boolean,
+        default: false
+      },
+      3: {
+        type: Boolean,
+        default: false
+      }
+    },
     // Estructura para almacenar los puntos extras de los estudiantes por momento
     puntosPorMomento: {
       momento1: [{

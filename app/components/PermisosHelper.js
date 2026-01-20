@@ -186,7 +186,8 @@ export function ocultarElementoCSS(elemento) {
       'eliminarEstudiantes',
       'avanzarGrado',
       'eliminarAula',
-      'agregarAula'
+      'agregarAula',
+      'bloquearMomento'
       // Se ha quitado 'agregarActividad' para que sea visible para docentes
     ];
     

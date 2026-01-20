@@ -2622,6 +2622,178 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     }
   };
 
+  // Función para descargar reporte de promedios por momento (Excel)
+  const descargarPromediosMomento = async (aulaId, momento) => {
+    try {
+      setLoading(true);
+      const url = `/api/reportes/promedios-momento?aulaId=${aulaId}&momento=${momento}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Error al generar reporte de promedios');
+      }
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileName = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `PROMEDIOS_Momento${momento}.xlsx`;
+      
+      const fileUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(fileUrl);
+      
+      setAlert({
+        title: 'Éxito',
+        message: 'Reporte de promedios descargado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setAlert({
+        title: 'Error',
+        message: `Error al descargar reporte: ${error.message}`,
+        icon: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para descargar reporte de aprobados/no aprobados por momento (Excel)
+  const descargarAprobadosMomento = async (aulaId, momento) => {
+    try {
+      setLoading(true);
+      const url = `/api/reportes/aprobados-momento?aulaId=${aulaId}&momento=${momento}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Error al generar reporte de aprobados');
+      }
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileName = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `APROBADOS_Momento${momento}.xlsx`;
+      
+      const fileUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(fileUrl);
+      
+      setAlert({
+        title: 'Éxito',
+        message: 'Reporte de aprobados descargado correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setAlert({
+        title: 'Error',
+        message: `Error al descargar reporte: ${error.message}`,
+        icon: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para descargar estadísticas generales (Excel)
+  const descargarEstadisticasGenerales = async (momento) => {
+    try {
+      setLoading(true);
+      const url = `/api/reportes/estadisticas-generales?momento=${momento}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Error al generar estadísticas generales');
+      }
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileName = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `ESTADISTICAS_GENERALES_Momento${momento}.xlsx`;
+      
+      const fileUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(fileUrl);
+      
+      setAlert({
+        title: 'Éxito',
+        message: 'Estadísticas generales descargadas correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setAlert({
+        title: 'Error',
+        message: `Error al descargar estadísticas: ${error.message}`,
+        icon: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Función para descargar distribución de promedios (Excel)
+  const descargarDistribucionPromedios = async (momento) => {
+    try {
+      setLoading(true);
+      const url = `/api/reportes/distribucion-promedios?momento=${momento}`;
+      const response = await fetch(url);
+      
+      if (!response.ok) {
+        throw new Error('Error al generar distribución de promedios');
+      }
+      
+      const blob = await response.blob();
+      const contentDisposition = response.headers.get('Content-Disposition');
+      const fileName = contentDisposition
+        ? contentDisposition.split('filename=')[1].replace(/"/g, '')
+        : `DISTRIBUCION_PROMEDIOS_Momento${momento}.xlsx`;
+      
+      const fileUrl = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = fileUrl;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(fileUrl);
+      
+      setAlert({
+        title: 'Éxito',
+        message: 'Distribución de promedios descargada correctamente',
+        icon: 'success'
+      });
+    } catch (error) {
+      console.error('Error:', error);
+      setAlert({
+        title: 'Error',
+        message: `Error al descargar distribución: ${error.message}`,
+        icon: 'error'
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
   // Función para generar reportes PDF
   const generarReporte = async (momento, aulaId, formatoRendimiento = false) => {
     try {
@@ -2794,6 +2966,13 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
   const [estudiantesAula, setEstudiantesAula] = useState([]);
   const [selectedStudentsToDelete, setSelectedStudentsToDelete] = useState([]);
   const [eliminandoEstudiantes, setEliminandoEstudiantes] = useState(false);
+  
+  // Estados para bloquear momento a nivel de aula
+  const [showBloquearMomentoModal, setShowBloquearMomentoModal] = useState(false);
+  const [aulaToBloquearMomento, setAulaToBloquearMomento] = useState(null);
+  const [momentoToBloquear, setMomentoToBloquear] = useState(null);
+  const [bloqueandoMomento, setBloqueandoMomento] = useState(false);
+  const [estadosMomentos, setEstadosMomentos] = useState({});
 
   // Cargar profesores cuando se muestra el formulario de aula
   useEffect(() => {
@@ -3770,6 +3949,113 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       setSelectedStudentsToDelete(prev => [...prev, studentId]);
     } else {
       setSelectedStudentsToDelete(prev => prev.filter(id => id !== studentId));
+    }
+  };
+
+  // Función para abrir el modal de bloquear momento
+  const openBloquearMomentoModal = async (aula) => {
+    console.log('🔓 Abriendo modal de bloquear momento para aula:', aula.nombre, aula._id);
+    setAulaToBloquearMomento(aula);
+    setMomentoToBloquear(null);
+    
+    // Obtener el estado actual de los momentos del aula
+    try {
+      const response = await fetch(`/api/aulas/${aula._id}/bloquear-momento`);
+      console.log('📡 Estado de respuesta:', response.status);
+      
+      if (response.ok) {
+        const result = await response.json();
+        console.log('📊 Resultado del estado de momentos:', result);
+        
+        if (result.success) {
+          const estadosActuales = result.momentosBloqueados || {};
+          console.log('✅ Estados de momentos cargados:', estadosActuales);
+          setEstadosMomentos(estadosActuales);
+        }
+      } else {
+        console.error('❌ Error en respuesta del servidor:', await response.text());
+      }
+    } catch (error) {
+      console.error('❌ Error al obtener estado de momentos:', error);
+      // Inicializar con estados vacíos en caso de error
+      setEstadosMomentos({});
+    }
+    
+    setShowBloquearMomentoModal(true);
+  };
+
+  // Función para bloquear/desbloquear un momento en todas las materias del aula
+  const handleBloquearMomentoAula = async (momento, bloquear) => {
+    console.log('🎯 handleBloquearMomentoAula llamada con:', { momento, bloquear, aula: aulaToBloquearMomento });
+    
+    if (!aulaToBloquearMomento) {
+      console.error('❌ No hay aula seleccionada');
+      alert('Error: No hay aula seleccionada');
+      return;
+    }
+    
+    if (!momento) {
+      console.error('❌ No hay momento especificado');
+      alert('Error: No hay momento especificado');
+      return;
+    }
+    
+    if (!aulaToBloquearMomento._id) {
+      console.error('❌ El aula no tiene ID');
+      alert('Error: El aula no tiene ID');
+      return;
+    }
+
+    try {
+      setBloqueandoMomento(true);
+      
+      console.log(`🔄 Intentando ${bloquear ? 'bloquear' : 'desbloquear'} momento ${momento} del aula ${aulaToBloquearMomento._id}`);
+      
+      const response = await fetch(`/api/aulas/${aulaToBloquearMomento._id}/bloquear-momento`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          momento: parseInt(momento),
+          bloqueado: bloquear
+        })
+      });
+
+      const result = await response.json();
+      console.log('📥 Respuesta del servidor:', result);
+
+      if (response.ok && result.success) {
+        // Recargar el estado actual desde el servidor
+        const estadoResponse = await fetch(`/api/aulas/${aulaToBloquearMomento._id}/bloquear-momento`);
+        if (estadoResponse.ok) {
+          const estadoResult = await estadoResponse.json();
+          if (estadoResult.success) {
+            console.log('📊 Estado actualizado:', estadoResult.momentosBloqueados);
+            setEstadosMomentos(estadoResult.momentosBloqueados || {});
+          }
+        }
+        
+        // Actualizar la lista de aulas
+        await loadAulas();
+        
+        setAlert({
+          title: 'Éxito',
+          message: result.message || `Momento ${momento} ${bloquear ? 'bloqueado' : 'desbloqueado'} correctamente`,
+          icon: 'success'
+        });
+      } else {
+        throw new Error(result.message || 'Error al bloquear/desbloquear momento');
+      }
+    } catch (error) {
+      console.error('❌ Error al bloquear/desbloquear momento:', error);
+      setAlert({
+        title: 'Error',
+        message: error.message || 'Error al actualizar el estado del momento',
+        icon: 'error'
+      });
+    } finally {
+      setBloqueandoMomento(false);
     }
   };
 
@@ -11015,6 +11301,73 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                         Reportes
                       </button>
                       )}
+
+                      {/* Botones de Estadísticas Generales */}
+                      {!esDocente() && (
+                      <div className="flex items-center space-x-4">
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-purple-700">Estadísticas Generales:</span>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando estadísticas M1...');
+                              descargarEstadisticasGenerales(1);
+                            }}
+                            className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors shadow-sm"
+                          >
+                            M1
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando estadísticas M2...');
+                              descargarEstadisticasGenerales(2);
+                            }}
+                            className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors shadow-sm"
+                          >
+                            M2
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando estadísticas M3...');
+                              descargarEstadisticasGenerales(3);
+                            }}
+                            className="px-3 py-1 bg-purple-600 text-white text-sm rounded hover:bg-purple-700 transition-colors shadow-sm"
+                          >
+                            M3
+                          </button>
+                        </div>
+
+                        <div className="flex items-center space-x-2">
+                          <span className="text-sm font-medium text-indigo-700">Distribución Promedios:</span>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando distribución M1...');
+                              descargarDistribucionPromedios(1);
+                            }}
+                            className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors shadow-sm"
+                          >
+                            M1
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando distribución M2...');
+                              descargarDistribucionPromedios(2);
+                            }}
+                            className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors shadow-sm"
+                          >
+                            M2
+                          </button>
+                          <button
+                            onClick={() => {
+                              console.log('🔄 Descargando distribución M3...');
+                              descargarDistribucionPromedios(3);
+                            }}
+                            className="px-3 py-1 bg-indigo-600 text-white text-sm rounded hover:bg-indigo-700 transition-colors shadow-sm"
+                          >
+                            M3
+                          </button>
+                        </div>
+                      </div>
+                      )}
                     </div>
                   </div>
 
@@ -11138,6 +11491,72 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                               </svg>
                               Configurar Materias
                             </button>
+                            
+                            <button
+                              onClick={() => openBloquearMomentoModal(aula)}
+                              className={`bg-yellow-600 text-white px-3 py-2 rounded text-sm hover:bg-yellow-700 transition-colors flex items-center justify-center w-full ${ocultarElementoCSS('bloquearMomento')}`}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                              </svg>
+                              Bloquear Momento
+                            </button>
+
+                            {/* Botón de Reporte de Promedios por momento */}
+                            <div className="w-full space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-700">Promedios</span>
+                                <span className="text-[10px] text-gray-400">Excel</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <button
+                                  onClick={() => descargarPromediosMomento(aula._id, 1)}
+                                  className="bg-cyan-600 text-white px-1 py-1 rounded text-[11px] hover:bg-cyan-700 transition-colors"
+                                >
+                                  M1
+                                </button>
+                                <button
+                                  onClick={() => descargarPromediosMomento(aula._id, 2)}
+                                  className="bg-cyan-600 text-white px-1 py-1 rounded text-[11px] hover:bg-cyan-700 transition-colors"
+                                >
+                                  M2
+                                </button>
+                                <button
+                                  onClick={() => descargarPromediosMomento(aula._id, 3)}
+                                  className="bg-cyan-600 text-white px-1 py-1 rounded text-[11px] hover:bg-cyan-700 transition-colors"
+                                >
+                                  M3
+                                </button>
+                              </div>
+                            </div>
+
+                            {/* Botón de Reporte de Aprobados por momento */}
+                            <div className="w-full space-y-1">
+                              <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-gray-700">Aprobados</span>
+                                <span className="text-[10px] text-gray-400">Excel</span>
+                              </div>
+                              <div className="grid grid-cols-3 gap-1">
+                                <button
+                                  onClick={() => descargarAprobadosMomento(aula._id, 1)}
+                                  className="bg-teal-600 text-white px-1 py-1 rounded text-[11px] hover:bg-teal-700 transition-colors"
+                                >
+                                  M1
+                                </button>
+                                <button
+                                  onClick={() => descargarAprobadosMomento(aula._id, 2)}
+                                  className="bg-teal-600 text-white px-1 py-1 rounded text-[11px] hover:bg-teal-700 transition-colors"
+                                >
+                                  M2
+                                </button>
+                                <button
+                                  onClick={() => descargarAprobadosMomento(aula._id, 3)}
+                                  className="bg-teal-600 text-white px-1 py-1 rounded text-[11px] hover:bg-teal-700 transition-colors"
+                                >
+                                  M3
+                                </button>
+                              </div>
+                            </div>
                             
                             <button
                               onClick={() => {
@@ -15280,6 +15699,109 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                   </div>
                 </div>
               )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Bloquear Momento */}
+      {showBloquearMomentoModal && aulaToBloquearMomento && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg w-full max-w-md">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-bold">Bloquear Momento - {aulaToBloquearMomento.nombre}</h3>
+                <button
+                  onClick={() => {
+                    setShowBloquearMomentoModal(false);
+                    setAulaToBloquearMomento(null);
+                    setMomentoToBloquear(null);
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                  disabled={bloqueandoMomento}
+                >
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                Bloquear o desbloquear un momento evita que se puedan subir notas en todas las materias del aula. 
+                Los reportes no se verán afectados.
+              </p>
+
+              <div className="space-y-4">
+                {[1, 2, 3].map((momento) => {
+                  const estaBloqueado = estadosMomentos[momento] === true;
+                  return (
+                    <div 
+                      key={momento}
+                      className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50 transition-colors"
+                    >
+                      <div className="flex items-center">
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center mr-3 ${
+                          estaBloqueado ? 'bg-red-100 text-red-600' : 'bg-green-100 text-green-600'
+                        }`}>
+                          <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            {estaBloqueado ? (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                            ) : (
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 11V7a4 4 0 118 0m-4 8v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2z" />
+                            )}
+                          </svg>
+                        </div>
+                        <div>
+                          <p className="font-semibold text-gray-900">Momento {momento}</p>
+                          <p className="text-sm text-gray-500">
+                            {estaBloqueado ? 'Bloqueado' : 'Desbloqueado'}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          console.log('🖱️ Click en botón de momento:', momento, 'estaBloqueado:', estaBloqueado);
+                          handleBloquearMomentoAula(momento, !estaBloqueado);
+                        }}
+                        disabled={bloqueandoMomento}
+                        className={`px-4 py-2 rounded-md text-sm font-medium transition-colors ${
+                          estaBloqueado
+                            ? 'bg-green-600 text-white hover:bg-green-700 disabled:bg-gray-300 disabled:cursor-not-allowed'
+                            : 'bg-red-600 text-white hover:bg-red-700 disabled:bg-gray-300 disabled:cursor-not-allowed'
+                        }`}
+                      >
+                        {bloqueandoMomento ? (
+                          <span className="flex items-center">
+                            <svg className="animate-spin h-4 w-4 mr-2" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            Procesando...
+                          </span>
+                        ) : (
+                          estaBloqueado ? 'Desbloquear' : 'Bloquear'
+                        )}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="mt-6 flex justify-end">
+                <button
+                  onClick={() => {
+                    setShowBloquearMomentoModal(false);
+                    setAulaToBloquearMomento(null);
+                    setMomentoToBloquear(null);
+                  }}
+                  disabled={bloqueandoMomento}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-md hover:bg-gray-700 transition-colors disabled:bg-gray-300"
+                >
+                  Cerrar
+                </button>
+              </div>
             </div>
           </div>
         </div>
