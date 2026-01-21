@@ -207,10 +207,24 @@ export async function GET(request) {
         const materiaId = asig.materia?.id;
         const bloqueado = asig.momentosBloqueados?.[momento] === true;
         
-        if (!detallePorMateria[nombreMateria]) detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
+        if (!detallePorMateria[nombreMateria]) {
+          detallePorMateria[nombreMateria] = { 
+            ev: ['', '', '', '', '', '', '', ''], 
+            porcentajes: ['', '', '', '', '', '', '', ''],
+            resultados: ['', '', '', '', '', '', '', ''],
+            nf: '',
+            sumaTotal: ''
+          };
+        }
         
         if (bloqueado) {
-          detallePorMateria[nombreMateria] = { ev: ['', '', '', '', '', '', '', ''], nf: '' };
+          detallePorMateria[nombreMateria] = { 
+            ev: ['', '', '', '', '', '', '', ''], 
+            porcentajes: ['', '', '', '', '', '', '', ''],
+            resultados: ['', '', '', '', '', '', '', ''],
+            nf: '',
+            sumaTotal: ''
+          };
           continue;
         }
 
@@ -219,7 +233,10 @@ export async function GET(request) {
           console.log(`  📝 Sabana - Materia NO asignada con "NC": ${nombreMateria} (ID: ${materiaId}) para ${nombre} ${apellido}`);
           detallePorMateria[nombreMateria] = { 
             ev: ['NC', 'NC', 'NC', 'NC', 'NC', 'NC', 'NC', 'NC'], 
-            nf: 'NC' 
+            porcentajes: ['', '', '', '', '', '', '', ''],
+            resultados: ['', '', '', '', '', '', '', ''],
+            nf: 'NC',
+            sumaTotal: ''
           };
           continue;
         }
@@ -245,6 +262,8 @@ export async function GET(request) {
 
         const registrosPromedio = [];
         const ev = ['', '', '', '', '', '', '', ''];
+        const porcentajes = ['', '', '', '', '', '', '', ''];
+        const resultados = ['', '', '', '', '', '', '', ''];
         let evIndex = 0;
 
         const parseLiteralNota = (calificacion) => {
@@ -325,17 +344,23 @@ export async function GET(request) {
             }
             if (evIndex < 8) {
               ev[evIndex] = literal;
+              porcentajes[evIndex] = porcentaje > 0 ? `${porcentaje}%` : '';
+              resultados[evIndex] = valorLiteral !== null ? (valorLiteral * (porcentaje / 100)).toFixed(2) : '';
               evIndex++;
             }
           } else if (valorNumerico !== null) {
             registrosPromedio.push({ valor: valorNumerico, porcentaje });
             if (evIndex < 8) {
               ev[evIndex] = entero(valorNumerico);
+              porcentajes[evIndex] = porcentaje > 0 ? `${porcentaje}%` : '';
+              resultados[evIndex] = (valorNumerico * (porcentaje / 100)).toFixed(2);
               evIndex++;
             }
           } else {
             if (evIndex < 8) {
               ev[evIndex] = '';
+              porcentajes[evIndex] = porcentaje > 0 ? `${porcentaje}%` : '';
+              resultados[evIndex] = '';
               evIndex++;
             }
           }
@@ -344,7 +369,13 @@ export async function GET(request) {
 
         
         if (registrosPromedio.length === 0) {
-          detallePorMateria[nombreMateria] = { ev, nf: '' };
+          detallePorMateria[nombreMateria] = { 
+            ev, 
+            porcentajes, 
+            resultados, 
+            nf: '', 
+            sumaTotal: '' 
+          };
         } else {
           // TODAS las materias usan la misma fórmula: suma directa de nota * porcentaje/100
           const promedioBase = registrosPromedio.reduce((sum, item) => {
@@ -354,7 +385,19 @@ export async function GET(request) {
           const puntosExtraAlumno = obtenerPuntosExtraAlumno(puntosExtraMap, alumno);
           const promedioConPuntos = Math.min(20, Math.max(0, promedioBase + puntosExtraAlumno));
           const nfFinal = Math.min(20, Math.max(0, redondearPromedio(promedioConPuntos)));
-          detallePorMateria[nombreMateria] = { ev, nf: nfFinal.toString() };
+          
+          // Calcular suma total de los resultados
+          const sumaResultados = resultados
+            .filter(r => r !== '')
+            .reduce((sum, r) => sum + parseFloat(r), 0);
+          
+          detallePorMateria[nombreMateria] = { 
+            ev, 
+            porcentajes, 
+            resultados, 
+            nf: nfFinal.toString(),
+            sumaTotal: sumaResultados.toFixed(2)
+          };
         }
       }
 
@@ -370,18 +413,23 @@ export async function GET(request) {
     estudiantesConNF.sort((a, b) => (a.cedula || '').localeCompare(b.cedula || '', undefined, { numeric: true }));
     estudiantesConNF.forEach((e, i) => { e.orden = i + 1; });
 
-    // Construcción de hoja: N°, Nombre, Cédula + por materia: EV1..EV8, NF
+    // Construcción de hoja: N°, Nombre, Cédula + por materia: EV1..EV8 con porcentajes y resultados, NF, Suma
     // Encabezado principal: N°, Nombre, (columna separadora), Cédula, luego materias
     const headerMaterias = ['N°', 'Nombre', '', 'Cédula'];
     materiasOrdenadas.forEach(mat => {
       headerMaterias.push(mat); // Nombre de materia en la primera columna de cada grupo
-      for (let i = 0; i < 8; i++) headerMaterias.push(''); // Espacios para EV2-EV8
+      // Espacios para: EV1, %EV1, RES1, EV2, %EV2, RES2, ..., EV8, %EV8, RES8, NF, SUMA
+      for (let i = 0; i < 26; i++) headerMaterias.push(''); // 8*3 + 2 = 26 columnas adicionales
     });
 
-    // Subencabezados: vacíos para N°, Nombre, separador, Cédula, luego EV1-EV8, NF por materia
+    // Subencabezados: vacíos para N°, Nombre, separador, Cédula, luego estructura detallada por materia
     const subHeaderRow = ['', '', '', '']; // N°, Nombre, separador, Cédula
     materiasOrdenadas.forEach(() => {
-      subHeaderRow.push('EV1','EV2','EV3','EV4','EV5','EV6','EV7','EV8','NF');
+      // Por cada materia: EV1, %EV1, RES1, EV2, %EV2, RES2, ..., EV8, %EV8, RES8, NF, SUMA
+      for (let i = 1; i <= 8; i++) {
+        subHeaderRow.push(`EV${i}`, `%${i}`, `R${i}`);
+      }
+      subHeaderRow.push('NF', 'SUMA');
     });
 
     const data = [headerMaterias, subHeaderRow];
@@ -389,8 +437,21 @@ export async function GET(request) {
     estudiantesConNF.forEach(est => {
       const row = [est.orden, est.nombreCompleto, '', est.cedula];
       materiasOrdenadas.forEach(mat => {
-        const det = est.detallePorMateria[mat] || { ev: ['', '', '', '', '', '', '', ''], nf: '' };
-        row.push(...det.ev, det.nf);
+        const det = est.detallePorMateria[mat] || { 
+          ev: ['', '', '', '', '', '', '', ''], 
+          porcentajes: ['', '', '', '', '', '', '', ''],
+          resultados: ['', '', '', '', '', '', '', ''],
+          nf: '',
+          sumaTotal: ''
+        };
+        
+        // Por cada evaluación: EV, %, Resultado
+        for (let i = 0; i < 8; i++) {
+          row.push(det.ev[i] || '', det.porcentajes[i] || '', det.resultados[i] || '');
+        }
+        
+        // NF y Suma Total
+        row.push(det.nf || '', det.sumaTotal || '');
       });
       data.push(row);
     });
@@ -398,9 +459,19 @@ export async function GET(request) {
     const wb = XLSX.utils.book_new();
     const ws = XLSX.utils.aoa_to_sheet(data);
 
-    // Anchos optimizados para que todo quepa en una sola página: N°, Nombre, separador, Cédula, resto estrechos
+    // Anchos optimizados: N°, Nombre, separador, Cédula, luego por materia: EV, %, RES (x8), NF, SUMA
     const cols = [{ wch: 4 }, { wch: 30 }, { wch: 2 }, { wch: 12 }];
-    materiasOrdenadas.forEach(() => cols.push({ wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }, { wch: 4 }));
+    materiasOrdenadas.forEach(() => {
+      // Por cada materia: 8 grupos de (EV, %, RES) + NF + SUMA = 27 columnas
+      for (let i = 0; i < 8; i++) {
+        cols.push(
+          { wch: 4 },  // EV
+          { wch: 5 },  // %
+          { wch: 6 }   // Resultado
+        );
+      }
+      cols.push({ wch: 4 }, { wch: 6 }); // NF, SUMA
+    });
     ws['!cols'] = cols;
 
     // Configuración de página para una sola hoja sin cortar (horizontal)

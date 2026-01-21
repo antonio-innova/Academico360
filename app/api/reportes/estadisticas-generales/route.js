@@ -111,11 +111,7 @@ export async function GET(request) {
     let totalGeneralReprobados = 0;
     let totalGeneralEstudiantes = 0;
 
-    // Estadísticas por materia (global)
-    const estadisticasPorMateria = {};
-    materiasOrdenadas.forEach(materia => {
-      estadisticasPorMateria[materia] = { aprobados: 0, reprobados: 0, total: 0 };
-    });
+    // No necesitamos estadísticas por materia ya que contamos estudiantes, no calificaciones individuales
 
     for (const aula of aulas) {
       const asignacionesAula = Array.isArray(aula.asignaciones) ? aula.asignaciones : [];
@@ -143,13 +139,13 @@ export async function GET(request) {
         seccion: aula.seccion,
         turno: aula.turno,
         totalEstudiantes: estudiantesAula.length,
-        materias: {}
+        totalAprobados: 0,
+        totalReprobados: 0
       };
 
-      // Inicializar estadísticas de materias para esta aula
-      materiasOrdenadas.forEach(materia => {
-        estadisticasAula.materias[materia] = { aprobados: 0, reprobados: 0, total: 0 };
-      });
+      // Inicializar contadores del aula
+      estadisticasAula.totalAprobados = 0;
+      estadisticasAula.totalReprobados = 0;
 
       // Procesar cada estudiante
       for (const alumno of estudiantesAula) {
@@ -171,6 +167,9 @@ export async function GET(request) {
           materiasAsignadas = alumno.materiasAsignadas;
           tieneRestricciones = true;
         }
+
+        // Array para almacenar los promedios de cada materia del estudiante
+        const promediosPorMateria = [];
 
         // Procesar cada asignación
         for (const asig of asignacionesAula) {
@@ -290,35 +289,36 @@ export async function GET(request) {
             }
           }
 
-          // Actualizar estadísticas si el estudiante tiene calificaciones en esta materia
+          // Guardar el promedio de esta materia para el estudiante
           if (registrosPromedio.length > 0) {
-            estadisticasAula.materias[nombreMateria].total++;
-            estadisticasPorMateria[nombreMateria].total++;
-
             if (estaAprobado) {
-              estadisticasAula.materias[nombreMateria].aprobados++;
-              estadisticasPorMateria[nombreMateria].aprobados++;
+              promediosPorMateria.push(1); // Aprobado
             } else {
-              estadisticasAula.materias[nombreMateria].reprobados++;
-              estadisticasPorMateria[nombreMateria].reprobados++;
+              promediosPorMateria.push(0); // Reprobado
             }
+          }
+        }
+
+        // Calcular promedio general del estudiante (promedio de todas sus materias)
+        if (promediosPorMateria.length > 0) {
+          const materiasAprobadas = promediosPorMateria.filter(p => p === 1).length;
+          const materiasReprobadas = promediosPorMateria.filter(p => p === 0).length;
+          
+          // Un estudiante está aprobado si tiene más materias aprobadas que reprobadas
+          const estudianteAprobado = materiasAprobadas > materiasReprobadas;
+          
+          // Contar el estudiante UNA SOLA VEZ en las estadísticas del aula
+          if (estudianteAprobado) {
+            estadisticasAula.totalAprobados++;
+          } else {
+            estadisticasAula.totalReprobados++;
           }
         }
       }
 
-      // Calcular totales del aula
-      let aprobadosAula = 0;
-      let reprobadosAula = 0;
-      Object.values(estadisticasAula.materias).forEach(stats => {
-        aprobadosAula += stats.aprobados;
-        reprobadosAula += stats.reprobados;
-      });
-
-      estadisticasAula.totalAprobados = aprobadosAula;
-      estadisticasAula.totalReprobados = reprobadosAula;
-
-      totalGeneralAprobados += aprobadosAula;
-      totalGeneralReprobados += reprobadosAula;
+      // Los totales del aula ya están calculados (por estudiante, no por materia)
+      totalGeneralAprobados += estadisticasAula.totalAprobados;
+      totalGeneralReprobados += estadisticasAula.totalReprobados;
       totalGeneralEstudiantes += estudiantesAula.length;
 
       estadisticasPorAula.push(estadisticasAula);
@@ -361,72 +361,7 @@ export async function GET(request) {
       ]);
     });
 
-    data.push([]); // Línea vacía
-    data.push([]); // Línea vacía
-
-    // Sección 2: Estadísticas por Materia
-    data.push(['ESTADÍSTICAS POR MATERIA']);
-    data.push([]);
-
-    const headersMateria = ['Materia', 'Total Calificaciones', 'Aprobados', 'Reprobados', '% Aprobados'];
-    data.push(headersMateria);
-
-    // Datos por materia
-    materiasOrdenadas.forEach(materia => {
-      const stats = estadisticasPorMateria[materia];
-      const porcentajeAprobados = stats.total > 0 ? ((stats.aprobados / stats.total) * 100).toFixed(1) : '0.0';
-      
-      data.push([
-        materia,
-        stats.total,
-        stats.aprobados,
-        stats.reprobados,
-        `${porcentajeAprobados}%`
-      ]);
-    });
-
-    data.push([]); // Línea vacía
-    data.push([]); // Línea vacía
-
-    // Sección 3: Detalle por Aula y Materia (separado por aula)
-    data.push(['DETALLE POR AULA Y MATERIA']);
-    data.push([]);
-
-    estadisticasPorAula.forEach((aula, indexAula) => {
-      // Título del aula con información completa
-      data.push([`AULA: ${aula.nombre} - ${aula.anio}° Año Sección ${aula.seccion} (${aula.turno})`]);
-      
-      // Encabezados de la tabla para esta aula
-      const headersDetalle = ['Materia', 'Aprobados', 'Reprobados', 'Total', '% Aprobados'];
-      data.push(headersDetalle);
-
-      // Datos de materias de esta aula
-      let aulaHayDatos = false;
-      materiasOrdenadas.forEach(materia => {
-        const stats = aula.materias[materia];
-        if (stats.total > 0) {
-          aulaHayDatos = true;
-          const porcentajeAprobados = ((stats.aprobados / stats.total) * 100).toFixed(1);
-          data.push([
-            materia,
-            stats.aprobados,
-            stats.reprobados,
-            stats.total,
-            `${porcentajeAprobados}%`
-          ]);
-        }
-      });
-
-      // Si no hay datos, mostrar mensaje
-      if (!aulaHayDatos) {
-        data.push(['(Sin calificaciones registradas)', '', '', '', '']);
-      }
-
-      // Línea en blanco entre aulas (excepto después de la última)
-      if (indexAula < estadisticasPorAula.length - 1) {
-        data.push([]);
-      }
-    });
+    // El reporte se enfoca en estudiantes aprobados/reprobados por aula, no por materia individual
 
     // Crear workbook
     const wb = XLSX.utils.book_new();
