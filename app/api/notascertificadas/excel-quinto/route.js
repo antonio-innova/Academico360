@@ -34,7 +34,8 @@ export async function POST(request) {
       estudiante = {},
       institucion = {},
       planEstudio = [],
-      metadata = {}
+      metadata = {},
+      observaciones = ''
     } = body || {};
 
     debugLogNotasPayload('Excel 1-5 años', body);
@@ -513,6 +514,45 @@ export async function POST(request) {
       }
     } catch (e) {
       console.error('Error al escribir Orientación/Participación:', e);
+    }
+
+    // Obtener observaciones del body o de notaFromCert (para formato 31059 - 1-5 año)
+    let observacionesData = observaciones;
+    console.log('🔍 DEBUG (excel-quinto) - Observaciones del body:', observaciones);
+    console.log('🔍 DEBUG (excel-quinto) - notaFromCert?.observaciones:', notaFromCert?.observaciones);
+    
+    if (!observacionesData && notaFromCert?.observaciones) {
+      observacionesData = notaFromCert.observaciones;
+      console.log('✅ Observaciones obtenidas de notaFromCert:', observacionesData);
+    }
+    // Si aún no hay observaciones y tenemos cédula, intentar obtener desde BD
+    if (!observacionesData && estudiante?.cedula) {
+      try {
+        await connectDB();
+        const notaDocObs = await NotaCertificada.findOne({ 'estudiante.cedula': estudiante.cedula })
+          .sort({ fechaCreacion: -1 })
+          .lean();
+        if (notaDocObs?.observaciones) {
+          observacionesData = notaDocObs.observaciones;
+          console.log('✅ Observaciones obtenidas de BD:', observacionesData);
+        }
+      } catch (error) {
+        console.error('Error al obtener observaciones desde BD:', error);
+      }
+    }
+
+    console.log('🔍 DEBUG (excel-quinto) - Observaciones finales a escribir:', observacionesData);
+
+    // Escribir observaciones: Fila 55, Columna N (14) para formato 31059 (1-5 año)
+    if (observacionesData) {
+      const cellObservaciones = ws.getCell(55, 14);
+      cellObservaciones.value = observacionesData;
+      // Alinear a la izquierda
+      cellObservaciones.alignment = { horizontal: 'left', vertical: 'top' };
+      console.log('✅ Observaciones escritas en fila 55, columna N (excel-quinto):', observacionesData);
+      console.log('✅ Celda N55 después de escribir:', ws.getCell(55, 14).value);
+    } else {
+      console.log('⚠️ No hay observaciones para escribir (excel-quinto)');
     }
 
     // Configurar página para impresión optimizada - UNA PÁGINA VERTICAL COMPLETA

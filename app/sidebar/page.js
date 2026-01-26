@@ -1587,6 +1587,103 @@ export default function SidebarPage() {
     };
     init();
   }, []);
+
+  // Cargar planteles personalizados cuando se active la pestaña de personalización o notas certificadas
+  useEffect(() => {
+    if (activeTab === 'personalizacion' || activeTab === 'notasCertificadas') {
+      loadPlantelesPersonalizados();
+    }
+  }, [activeTab]);
+
+  // Función para cargar planteles personalizados
+  const loadPlantelesPersonalizados = async () => {
+    try {
+      setLoadingPlanteles(true);
+      const response = await fetch('/api/planteles');
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        setPlantelesPersonalizados(result.data || []);
+      } else {
+        setNotification({ type: 'error', message: result.message || 'Error al cargar planteles' });
+      }
+    } catch (error) {
+      console.error('Error al cargar planteles:', error);
+      setNotification({ type: 'error', message: 'Error al cargar planteles' });
+    } finally {
+      setLoadingPlanteles(false);
+    }
+  };
+
+  // Función para guardar un plantel (crear o actualizar)
+  const handleSavePlantel = async () => {
+    try {
+      if (!plantelForm.nombre || !plantelForm.localidad || !plantelForm.ef) {
+        setNotification({ type: 'error', message: 'Todos los campos son requeridos' });
+        return;
+      }
+
+      const url = editingPlantel ? '/api/planteles' : '/api/planteles';
+      const method = editingPlantel ? 'PUT' : 'POST';
+      const body = editingPlantel 
+        ? { _id: editingPlantel._id, ...plantelForm }
+        : plantelForm;
+
+      const response = await fetch(url, {
+        method,
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setNotification({ type: 'success', message: editingPlantel ? 'Plantel actualizado' : 'Plantel creado' });
+        setPlantelForm({ nombre: '', localidad: '', ef: '' });
+        setEditingPlantel(null);
+        await loadPlantelesPersonalizados();
+      } else {
+        setNotification({ type: 'error', message: result.message || 'Error al guardar plantel' });
+      }
+    } catch (error) {
+      console.error('Error al guardar plantel:', error);
+      setNotification({ type: 'error', message: 'Error al guardar plantel' });
+    }
+  };
+
+  // Función para eliminar un plantel
+  const handleDeletePlantel = async (id) => {
+    if (!confirm('¿Estás seguro de eliminar este plantel?')) return;
+
+    try {
+      const response = await fetch(`/api/planteles?id=${id}`, {
+        method: 'DELETE'
+      });
+
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        setNotification({ type: 'success', message: 'Plantel eliminado' });
+        await loadPlantelesPersonalizados();
+      } else {
+        setNotification({ type: 'error', message: result.message || 'Error al eliminar plantel' });
+      }
+    } catch (error) {
+      console.error('Error al eliminar plantel:', error);
+      setNotification({ type: 'error', message: 'Error al eliminar plantel' });
+    }
+  };
+
+  // Función para editar un plantel
+  const handleEditPlantel = (plantel) => {
+    setPlantelForm({
+      nombre: plantel.nombre || '',
+      localidad: plantel.localidad || '',
+      ef: plantel.ef || ''
+    });
+    setEditingPlantel(plantel);
+  };
+
   const [aulaFormData, setAulaFormData] = useState({
     nombre: '',
     anio: '1',
@@ -1671,7 +1768,16 @@ export default function SidebarPage() {
   const [notaEst, setNotaEst] = useState({ cedula: '', nombres: '', apellidos: '', fechaNacimiento: '', pais: 'VENEZUELA', estado: '', municipio: '' });
   const [notaPlanCodigo, setNotaPlanCodigo] = useState(defaultPlanCodigo);
   const [notaPlan, setNotaPlan] = useState(() => buildNotaPlanDefault(defaultPlanCodigo));
+  const [notaObservacion, setNotaObservacion] = useState('');
+  const [notaProgramas, setNotaProgramas] = useState(['', '', '', '', '', '']); // 6 programas solo para 32011
   const [savingNotas, setSavingNotas] = useState(false);
+  
+  // Estados para planteles personalizados
+  const [plantelesPersonalizados, setPlantelesPersonalizados] = useState([]);
+  const [loadingPlanteles, setLoadingPlanteles] = useState(false);
+  const [plantelForm, setPlantelForm] = useState({ nombre: '', localidad: '', ef: '' });
+  const [editingPlantel, setEditingPlantel] = useState(null);
+  
   const [previewNotasVisible, setPreviewNotasVisible] = useState(false);
   const [previewNotasHtml, setPreviewNotasHtml] = useState('');
   const [previewNotasBlob, setPreviewNotasBlob] = useState(null);
@@ -1697,6 +1803,10 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
   const handleNotaPlanCodigoChange = (codigo) => {
     setNotaPlanCodigo(codigo);
     setNotaPlan(buildNotaPlanDefault(codigo));
+    // Limpiar programas si no es 32011
+    if (codigo !== '32011') {
+      setNotaProgramas(['', '', '', '', '', '']);
+    }
   };
 
   const addAnio = () => setNotaPlan(prev => {
@@ -1781,11 +1891,23 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     e.preventDefault();
     try {
       setSavingNotas(true);
-      console.log('Datos a enviar:', { institucion: notaInstitucion, estudiante: notaEst, planEstudio: notaPlan });
+      const payload = {
+        institucion: notaInstitucion,
+        estudiante: notaEst,
+        planEstudio: notaPlan,
+        observaciones: notaObservacion,
+        programas: Array.isArray(notaProgramas) ? notaProgramas : ['', '', '', '', '', '']
+      };
+      console.log('📤 Frontend - Datos a enviar:');
+      console.log('  - Plan código:', notaPlanCodigo);
+      console.log('  - Programas:', notaProgramas);
+      console.log('  - Programas en payload:', payload.programas);
+      console.log('  - Observación:', notaObservacion);
+      console.log('  - Payload completo:', payload);
       const res = await fetch('/api/notascertificadas', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ institucion: notaInstitucion, estudiante: notaEst, planEstudio: notaPlan })
+        body: JSON.stringify(payload)
       });
       const result = await res.json();
       if (result.success) {
@@ -1869,7 +1991,9 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       const payload = {
         estudiante,
         institucion,
-        planEstudio
+        planEstudio,
+        observaciones: notaObservacion,
+        programas: tipoFormato === 'formato32011' ? notaProgramas : []
       };
 
       if (includeEvaluacion) {
@@ -9739,6 +9863,23 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 </>
               )}
               
+              {/* Personalización - Visible solo para control */}
+              {userType === 'control' && (
+                <li>
+                  <button
+                    id="nav-personalizacion"
+                    className={`w-full flex items-center p-3 rounded-lg transition-all ${activeTab === 'personalizacion' ? 'bg-sky-500 text-white shadow-md' : 'text-white hover:bg-blue-600'}`}
+                    onClick={() => setActiveTab('personalizacion')}
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.065 2.572c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.572 1.065c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.065-2.572c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" />
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                    </svg>
+                    {!sidebarCollapsed && <span className="ml-3 font-medium">Personalización</span>}
+                  </button>
+                </li>
+              )}
+              
               {/* Asistencia - Visible solo para docentes y control */}
               {userType === 'control' && (
                 <>
@@ -10561,6 +10702,51 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                           ⚠️ <strong>Importante:</strong> Debe agregar al menos un plantel aquí para poder seleccionarlo en las materias del plan de estudio.
                         </div>
                       )}
+                      
+                      {/* Opción para agregar planteles personalizados */}
+                      <div className="mb-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          Agregar Plantel Personalizado
+                        </label>
+                        <div className="flex gap-2 items-center">
+                          <select
+                            className="flex-1 border rounded p-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                            value=""
+                            onChange={(e) => {
+                              const plantelId = e.target.value;
+                              if (plantelId) {
+                                const plantel = plantelesPersonalizados.find(p => p._id === plantelId);
+                                if (plantel) {
+                                  const nuevoPlantel = {
+                                    numero: String((notaInstitucion.planteles || []).length + 1),
+                                    nombre: plantel.nombre,
+                                    localidad: plantel.localidad,
+                                    ef: plantel.ef
+                                  };
+                                  setNotaInstitucion(prev => ({
+                                    ...prev,
+                                    planteles: [...(prev.planteles || []), nuevoPlantel]
+                                  }));
+                                  e.target.value = ''; // Reset select
+                                }
+                              }
+                            }}
+                          >
+                            <option value="">Seleccione un plantel personalizado...</option>
+                            {plantelesPersonalizados.map((plantel) => (
+                              <option key={plantel._id} value={plantel._id}>
+                                {plantel.nombre} - {plantel.localidad} ({plantel.ef})
+                              </option>
+                            ))}
+                          </select>
+                          {plantelesPersonalizados.length === 0 && (
+                            <span className="text-xs text-gray-500 px-2 whitespace-nowrap">
+                              No hay planteles personalizados. Ve a "Personalización" para agregar.
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      
                       <div className="space-y-2">
                         {(notaInstitucion.planteles||[]).map((p, i) => (
                           <div key={i} className="grid grid-cols-12 gap-2">
@@ -10654,45 +10840,48 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                               Fecha y Año para todo
                             </button>
                           </div>
-                          <div className="grid grid-cols-1 md:grid-cols-7 gap-2">
+                          <div className="space-y-4">
                             {anio.materias.map((m, mIdx)=> (
-                              <div key={mIdx} className="col-span-7 grid grid-cols-7 gap-2">
-                                <input className="border rounded p-2 col-span-2" placeholder="Materia" value={m.nombre} onChange={(e)=>updateMateria(idx,mIdx,'nombre',e.target.value)} />
-                                <input className="border rounded p-2" placeholder="N°" value={isMateriaEspecial(m.nombre) ? '' : (m.numero||'')} onChange={(e)=>updateMateria(idx,mIdx,'numero',e.target.value)} disabled={isMateriaEspecial(m.nombre)} />
-                                {/* Letras para materias normales; en Orientación o Grupo y Participación se manejará alfabético o Exento */}
-                                <input
-                                  className="border rounded p-2"
-                                  placeholder="Letras"
-                                  value={m.letras||''}
-                                  onChange={(e)=>updateMateria(idx,mIdx,'letras',e.target.value)}
-                                  list={`alfabetico-${idx}-${mIdx}`}
-                                />
-                                {/* Sugerencias de calificación alfabética o Exento para materias especiales */}
-                                <datalist id={`alfabetico-${idx}-${mIdx}`}>
-                                  <option value="A" />
-                                  <option value="B" />
-                                  <option value="C" />
-                                  <option value="D" />
-                                  <option value="E" />
-                                  <option value="Exento" />
-                                  <option value="EXENTO" />
-                                </datalist>
-                                <input className="border rounded p-2" placeholder="T-E" value={m.te||''} onChange={(e)=>updateMateria(idx,mIdx,'te',e.target.value)} />
-                                <input className="border rounded p-2" placeholder="Mes" value={m.fechaMes||''} onChange={(e)=>updateMateria(idx,mIdx,'fechaMes',e.target.value)} />
-                                <input className="border rounded p-2" placeholder="Año" value={m.fechaAnio||''} onChange={(e)=>updateMateria(idx,mIdx,'fechaAnio',e.target.value)} />
-                                <select className="border rounded p-2" value={m.plantelNumero||''} onChange={(e)=>updateMateria(idx,mIdx,'plantelNumero',e.target.value)}>
-                                  <option value="">Plantel</option>
-                                  {(notaInstitucion.planteles||[]).map(pl => (
-                                    <option key={pl.numero} value={pl.numero}>{pl.numero}</option>
-                                  ))}
-                                </select>
-                                {(notaInstitucion.planteles||[]).length === 0 && (
-                                  <span className="text-xs text-red-500 col-span-1">Agregue planteles primero</span>
-                                )}
-                                {/* Campo Grupo solo si es "Grupo y Participación" */}
-                                {String(m.nombre||'').toLowerCase().includes('grupo y particip') && (
-                                  <input className="border rounded p-2" placeholder="Grupo" value={m.grupo||''} onChange={(e)=>updateMateria(idx,mIdx,'grupo',e.target.value)} />
-                                )}
+                              <div key={mIdx} className="border rounded p-3 bg-gray-50">
+                                {/* Primera fila: Campos principales */}
+                                <div className="grid grid-cols-1 md:grid-cols-7 gap-2 mb-2">
+                                  <input className="border rounded p-2 col-span-2" placeholder="Materia" value={m.nombre} onChange={(e)=>updateMateria(idx,mIdx,'nombre',e.target.value)} />
+                                  <input className="border rounded p-2" placeholder="N°" value={isMateriaEspecial(m.nombre) ? '' : (m.numero||'')} onChange={(e)=>updateMateria(idx,mIdx,'numero',e.target.value)} disabled={isMateriaEspecial(m.nombre)} />
+                                  {/* Letras para materias normales; en Orientación o Grupo y Participación se manejará alfabético o Exento */}
+                                  <input
+                                    className="border rounded p-2"
+                                    placeholder="Letras"
+                                    value={m.letras||''}
+                                    onChange={(e)=>updateMateria(idx,mIdx,'letras',e.target.value)}
+                                    list={`alfabetico-${idx}-${mIdx}`}
+                                  />
+                                  {/* Sugerencias de calificación alfabética o Exento para materias especiales */}
+                                  <datalist id={`alfabetico-${idx}-${mIdx}`}>
+                                    <option value="A" />
+                                    <option value="B" />
+                                    <option value="C" />
+                                    <option value="D" />
+                                    <option value="E" />
+                                    <option value="Exento" />
+                                    <option value="EXENTO" />
+                                  </datalist>
+                                  <input className="border rounded p-2" placeholder="T-E" value={m.te||''} onChange={(e)=>updateMateria(idx,mIdx,'te',e.target.value)} />
+                                  <input className="border rounded p-2" placeholder="Mes" value={m.fechaMes||''} onChange={(e)=>updateMateria(idx,mIdx,'fechaMes',e.target.value)} />
+                                  <input className="border rounded p-2" placeholder="Año" value={m.fechaAnio||''} onChange={(e)=>updateMateria(idx,mIdx,'fechaAnio',e.target.value)} />
+                                  <select className="border rounded p-2" value={m.plantelNumero||''} onChange={(e)=>updateMateria(idx,mIdx,'plantelNumero',e.target.value)}>
+                                    <option value="">Plantel</option>
+                                    {(notaInstitucion.planteles||[]).map(pl => (
+                                      <option key={pl.numero} value={pl.numero}>{pl.numero}</option>
+                                    ))}
+                                  </select>
+                                  {(notaInstitucion.planteles||[]).length === 0 && (
+                                    <span className="text-xs text-red-500 col-span-1">Agregue planteles primero</span>
+                                  )}
+                                  {/* Campo Grupo solo si es "Grupo y Participación" */}
+                                  {String(m.nombre||'').toLowerCase().includes('grupo y particip') && (
+                                    <input className="border rounded p-2" placeholder="Grupo" value={m.grupo||''} onChange={(e)=>updateMateria(idx,mIdx,'grupo',e.target.value)} />
+                                  )}
+                                </div>
                               </div>
                             ))}
                           </div>
@@ -10701,6 +10890,39 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                       <button type="button" className="px-3 py-2 bg-blue-600 text-white rounded" onClick={addAnio}>+ Añadir Año</button>
                     </div>
                   </fieldset>
+
+                  {/* Campo Observación (para todas las notas certificadas) */}
+                  <fieldset className="border rounded p-4">
+                    <legend className="px-2 text-sm font-semibold">Observación</legend>
+                    <input 
+                      className="border rounded p-2 w-full" 
+                      placeholder="Observación" 
+                      value={notaObservacion} 
+                      onChange={(e) => setNotaObservacion(e.target.value)} 
+                    />
+                  </fieldset>
+
+                  {/* Campos Programas (solo para planilla 32011) */}
+                  {notaPlanCodigo === '32011' && (
+                    <fieldset className="border rounded p-4">
+                      <legend className="px-2 text-sm font-semibold">Programas</legend>
+                      <div className="grid grid-cols-6 gap-2">
+                        {[0, 1, 2, 3, 4, 5].map((progIdx) => (
+                          <input
+                            key={progIdx}
+                            className="border rounded p-2"
+                            placeholder={`Programa ${progIdx + 1}`}
+                            value={notaProgramas[progIdx] || ''}
+                            onChange={(e) => {
+                              const nuevosProgramas = [...notaProgramas];
+                              nuevosProgramas[progIdx] = e.target.value;
+                              setNotaProgramas(nuevosProgramas);
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </fieldset>
+                  )}
 
                   <div className="flex gap-3">
                     <button id="btn-guardar-nota-certificada" type="submit" className="px-4 py-2 bg-blue-600 text-white rounded">Guardar</button>
@@ -10806,6 +11028,138 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
             onSubmit: handleGenerarCertificadoEvaluacion,
             resumenFinalUploading
           })}
+        </div>
+      )}
+
+      {activeTab === 'personalizacion' && (
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h2 className="text-2xl font-bold text-gray-800">Personalización - Planteles</h2>
+          </div>
+
+          {/* Formulario para agregar/editar plantel */}
+          <div className="bg-gray-50 rounded-lg p-6 mb-6">
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">
+              {editingPlantel ? 'Editar Plantel' : 'Agregar Nuevo Plantel'}
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Nombre del Plantel *
+                </label>
+                <input
+                  type="text"
+                  value={plantelForm.nombre}
+                  onChange={(e) => setPlantelForm({ ...plantelForm, nombre: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: U.E. Simón Bolívar"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Localidad *
+                </label>
+                <input
+                  type="text"
+                  value={plantelForm.localidad}
+                  onChange={(e) => setPlantelForm({ ...plantelForm, localidad: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: Caracas"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium text-gray-700 mb-2">
+                  Entidad Federal (EF) *
+                </label>
+                <input
+                  type="text"
+                  value={plantelForm.ef}
+                  onChange={(e) => setPlantelForm({ ...plantelForm, ef: e.target.value })}
+                  className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  placeholder="Ej: Distrito Capital"
+                />
+              </div>
+            </div>
+            <div className="flex gap-3 mt-4">
+              <button
+                onClick={handleSavePlantel}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors font-medium"
+              >
+                {editingPlantel ? 'Actualizar' : 'Agregar'} Plantel
+              </button>
+              {editingPlantel && (
+                <button
+                  onClick={() => {
+                    setPlantelForm({ nombre: '', localidad: '', ef: '' });
+                    setEditingPlantel(null);
+                  }}
+                  className="px-4 py-2 bg-gray-300 text-gray-700 rounded-md hover:bg-gray-400 transition-colors font-medium"
+                >
+                  Cancelar
+                </button>
+              )}
+            </div>
+          </div>
+
+          {/* Lista de planteles */}
+          <div>
+            <h3 className="text-lg font-semibold text-gray-700 mb-4">Planteles Personalizados</h3>
+            {loadingPlanteles ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+              </div>
+            ) : plantelesPersonalizados.length === 0 ? (
+              <div className="text-center py-8 text-gray-500">
+                <p>No hay planteles personalizados. Agrega uno nuevo usando el formulario arriba.</p>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white border border-gray-200 rounded-lg">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">
+                        Nombre
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">
+                        Localidad
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">
+                        Entidad Federal
+                      </th>
+                      <th className="px-4 py-3 text-left text-xs font-medium text-gray-700 uppercase tracking-wider border-b">
+                        Acciones
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {plantelesPersonalizados.map((plantel) => (
+                      <tr key={plantel._id} className="hover:bg-gray-50">
+                        <td className="px-4 py-3 text-sm text-gray-900">{plantel.nombre}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{plantel.localidad}</td>
+                        <td className="px-4 py-3 text-sm text-gray-900">{plantel.ef}</td>
+                        <td className="px-4 py-3 text-sm">
+                          <div className="flex gap-2">
+                            <button
+                              onClick={() => handleEditPlantel(plantel)}
+                              className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 transition-colors text-xs"
+                            >
+                              Editar
+                            </button>
+                            <button
+                              onClick={() => handleDeletePlantel(plantel._id)}
+                              className="px-3 py-1 bg-red-500 text-white rounded hover:bg-red-600 transition-colors text-xs"
+                            >
+                              Eliminar
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </div>
         </div>
       )}
 

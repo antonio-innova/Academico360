@@ -49,6 +49,8 @@ const notaCertificadaSchema = new mongoose.Schema({
   anioEscolar: { type: String },
   planEstudio: { type: [planAnioSchema], default: [] },
   observaciones: { type: String },
+  // Programas (solo para planilla 32011)
+  programas: { type: [String], default: [] },
   creadoPor: { type: String },
   fechaCreacion: { type: Date, default: Date.now }
 });

@@ -60,7 +60,9 @@ export async function POST(request) {
       estudiante = {},
       institucion = {},
       planEstudio = [],
-      metadata = {}
+      metadata = {},
+      programas = [],
+      observaciones = ''
     } = body || {};
 
     debugLogNotasPayload('Excel 32011 (1°-3°)', body);
@@ -376,6 +378,46 @@ export async function POST(request) {
         writeRow(row, values, yearCols);
       });
     });
+
+    // Obtener programas y observaciones del body o de notaDoc
+    const programasData = Array.isArray(programas) && programas.length > 0 
+      ? programas 
+      : (Array.isArray(notaDoc?.programas) && notaDoc.programas.length > 0 
+          ? notaDoc.programas 
+          : []);
+    
+    const observacionesData = observaciones || notaDoc?.observaciones || '';
+
+    // Escribir programas en las posiciones especificadas
+    // Programa 1: Columna D (4), Fila 75
+    if (programasData[0]) {
+      ws.getCell(75, 4).value = programasData[0];
+    }
+    // Programa 2: Columna D (4), Fila 76
+    if (programasData[1]) {
+      ws.getCell(76, 4).value = programasData[1];
+    }
+    // Programa 3: Columna D (4), Fila 77
+    if (programasData[2]) {
+      ws.getCell(77, 4).value = programasData[2];
+    }
+    // Programa 4: Columna D (4), Fila 78
+    if (programasData[3]) {
+      ws.getCell(78, 4).value = programasData[3];
+    }
+    // Programa 5: Columna N (14), Fila 75
+    if (programasData[4]) {
+      ws.getCell(75, 14).value = programasData[4];
+    }
+    // Programa 6: Columna N (14), Fila 76
+    if (programasData[5]) {
+      ws.getCell(76, 14).value = programasData[5];
+    }
+
+    // Escribir observaciones: Fila 80, Columna N (14)
+    if (observacionesData) {
+      ws.getCell(80, 14).value = observacionesData;
+    }
 
     // Configurar página para que todo quepa en una sola hoja vertical sin espacios en blanco
     ws.pageSetup = {

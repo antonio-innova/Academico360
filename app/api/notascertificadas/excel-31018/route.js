@@ -59,7 +59,8 @@ export async function POST(request) {
       estudiante = {},
       institucion = {},
       planEstudio = [],
-      metadata = {}
+      metadata = {},
+      observaciones = ''
     } = body || {};
 
     debugLogNotasPayload('Excel 31018 (4°-5°)', body);
@@ -375,6 +376,17 @@ export async function POST(request) {
         writeRow(row, values, yearCols);
       });
     });
+
+    // Obtener observaciones del body o de notaDoc
+    const observacionesData = observaciones || notaDoc?.observaciones || '';
+
+    // Escribir observaciones: Fila 80, Columna N (14) para formato 31018
+    if (observacionesData) {
+      const cellObservaciones = ws.getCell(80, 14);
+      cellObservaciones.value = observacionesData;
+      // Alinear a la izquierda
+      cellObservaciones.alignment = { horizontal: 'left', vertical: 'top' };
+    }
 
     // Configurar página para que todo quepa en una sola hoja vertical sin espacios en blanco
     ws.pageSetup = {
