@@ -864,7 +864,8 @@ export async function POST(request) {
           if (!startRow || !endRow || endRow < startRow) return;
 
           const maxLines = endRow - startRow + 1;
-          const maxLen = Math.max(1, columnLetterToNumber(endCol) - columnLetterToNumber(startCol) + 1);
+          // Regla fija solicitada: cada línea máx. 133 caracteres (en todos los reportes)
+          const maxLen = 133;
           const lines = rawText ? wrapTextByMaxLen(rawText, maxLen) : [];
 
           for (let i = 0; i < maxLines; i += 1) {
