@@ -4,6 +4,7 @@ import path from 'path';
 import { connectDB } from '@/database/db';
 import ResumenFinal from '@/database/models/ResumenFinal';
 import ExcelJS from 'exceljs';
+import Director from '@/database/models/Director';
 
 const sanitizeString = (value) => {
   if (value === null || value === undefined) return '';
@@ -176,6 +177,10 @@ export async function POST(request) {
       );
     }
 
+    const anioCursadoFormatoRaw = sanitizeString(formData.get('anioCursadoFormato')) || 'letra';
+    const anioCursadoFormato = anioCursadoFormatoRaw.toLowerCase();
+    const observaciones = sanitizeString(formData.get('observaciones'));
+
     const seccion = sanitizeString(formData.get('seccion')).toUpperCase();
     if (!seccion) {
       return NextResponse.json(
@@ -213,6 +218,7 @@ export async function POST(request) {
       anioEscolarInicio,
       anioEscolarFin,
       mesReporte,
+      observaciones,
       momento: sanitizeString(formData.get('momento')),
       contexto: sanitizeString(formData.get('contexto')),
       aulaReferencia: sanitizeString(formData.get('aulaId')),
@@ -268,13 +274,14 @@ export async function POST(request) {
         sectionCell: { column: 'BO', row: 65 },
         totalGeneralCell: { column: 'BL', row: 67 },
         pageTotalCell: { column: 'BO', row: 67 },
-        remisionFechaRow: 70,
-        remisionNombreRow: 73,
-        remisionCedulaRow: 75,
+        observaciones: { startRow: 69, endRow: 73, startCol: 'A', endCol: 'BP' },
+        remisionFechaRow: 74,
+        remisionNombreRow: 77,
+        remisionCedulaRow: 79,
         teacherNameColumn: 'Z',
         teacherIdColumn: 'AR',
-        remisionNombreColumn: 'J',
-        remisionCedulaColumn: 'J'
+        remisionNombreColumn: 'B',
+        remisionCedulaColumn: 'B'
       },
       '2': {
         template: 'formatoFinal2do.xlsx',
@@ -306,13 +313,14 @@ export async function POST(request) {
         sectionCell: { column: 'BO', row: 65 },
         totalGeneralCell: { column: 'BL', row: 67 },
         pageTotalCell: { column: 'BO', row: 67 },
-        remisionFechaRow: 70,
-        remisionNombreRow: 73,
-        remisionCedulaRow: 75,
+        observaciones: { startRow: 69, endRow: 73, startCol: 'A', endCol: 'BP' },
+        remisionFechaRow: 74,
+        remisionNombreRow: 77,
+        remisionCedulaRow: 79,
         teacherNameColumn: 'Z',
         teacherIdColumn: 'AR',
-        remisionNombreColumn: 'J',
-        remisionCedulaColumn: 'J'
+        remisionNombreColumn: 'B',
+        remisionCedulaColumn: 'B'
       },
       '3': {
         template: 'formatoFinal3ero.xlsx',
@@ -348,13 +356,14 @@ export async function POST(request) {
         sectionCell: { column: 'BO', row: 65 },
         totalGeneralCell: { column: 'BL', row: 68 },
         pageTotalCell: { column: 'BO', row: 68 },
-        remisionFechaRow: 71,
-        remisionNombreRow: 74,
-        remisionCedulaRow: 76,
+        observaciones: { startRow: 70, endRow: 74, startCol: 'A', endCol: 'BQ' },
+        remisionFechaRow: 75,
+        remisionNombreRow: 78,
+        remisionCedulaRow: 80,
         teacherNameColumn: 'Z',
         teacherIdColumn: 'AR',
-        remisionNombreColumn: 'J',
-        remisionCedulaColumn: 'J'
+        remisionNombreColumn: 'B',
+        remisionCedulaColumn: 'B'
       },
       '4': {
         template: 'formatoFInal4to.xlsx',
@@ -391,9 +400,10 @@ export async function POST(request) {
         sectionCell: { column: 'BN', row: 65 },
         totalGeneralCell: { column: 'BM', row: 69 },
         pageTotalCell: { column: 'BQ', row: 69 },
-        remisionFechaRow: 72,
-        remisionNombreRow: 75,
-        remisionCedulaRow: 77,
+        observaciones: { startRow: 71, endRow: 75, startCol: 'A', endCol: 'BR' },
+        remisionFechaRow: 76,
+        remisionNombreRow: 79,
+        remisionCedulaRow: 81,
         teacherNameColumn: 'Z',
         teacherIdColumn: 'AQ',
         remisionNombreColumn: 'B',
@@ -435,9 +445,10 @@ export async function POST(request) {
         sectionCell: { column: 'BM', row: 65 },
         totalGeneralCell: { column: 'BM', row: 70 },
         pageTotalCell: { column: 'BQ', row: 70 },
-        remisionFechaRow: 73,
-        remisionNombreRow: 76,
-        remisionCedulaRow: 78,
+        observaciones: { startRow: 72, endRow: 76, startCol: 'A', endCol: 'BS' },
+        remisionFechaRow: 77,
+        remisionNombreRow: 80,
+        remisionCedulaRow: 81,
         teacherNameColumn: 'Z',
         teacherIdColumn: 'AP',
         remisionNombreColumn: 'B',
@@ -519,6 +530,10 @@ export async function POST(request) {
           });
         };
 
+        const directorDoc = await Director.findOne({ key: 'global' }).lean();
+        const directoraNombre = sanitizeString(directorDoc?.nombre).toUpperCase();
+        const directoraCedula = sanitizeString(directorDoc?.cedula);
+
         const INSTITUTION_INFO = {
           codigo: 'P00001220',
           denominacion: 'UNIDAD EDUCATIVA COLEGIO LAS ACACIAS',
@@ -527,8 +542,8 @@ export async function POST(request) {
           direccionLinea2: 'VALERA, ESTADO TRUJILLO',
           entidadFederal: 'TRUJILLO',
           cdcee: 'UNIDAD EDUCATIVA COLEGIO LAS ACACIAS',
-          directora: 'CARMEN ELENA SANCHEZ RIVERO',
-          directoraCedula: 'X'
+          directora: directoraNombre || 'CARMEN ELENA SANCHEZ RIVERO',
+          directoraCedula: directoraCedula || 'X'
         };
 
         const academicInfo = {
@@ -536,6 +551,14 @@ export async function POST(request) {
           fin: anioEscolarFin,
           mes: mesReporte.toUpperCase()
         };
+
+        const anioCursadoLabel = (() => {
+          const n = Number(grado);
+          const mapNumero = { 1: '1ero', 2: '2do', 3: '3ero', 4: '4to', 5: '5to' };
+          const mapLetra = { 1: 'Primero', 2: 'Segundo', 3: 'Tercero', 4: 'Cuarto', 5: 'Quinto' };
+          if (anioCursadoFormato === 'numero') return mapNumero[n] || String(grado);
+          return mapLetra[n] || String(grado);
+        })();
 
         const START_ROW = 17;
         const SUMMARY_ROWS = {
@@ -762,6 +785,100 @@ export async function POST(request) {
           }
         };
 
+        const setMergedCellValue = (sheet, addr, value, options = {}) => {
+          if (value === undefined || value === null) return;
+          const cell = sheet.getCell(addr);
+          const target = cell.isMerged && cell.master ? cell.master : cell;
+          target.value = value;
+          if (options.font) target.font = options.font;
+          if (options.alignment) target.alignment = options.alignment;
+        };
+
+        const columnLetterToNumber = (col = '') => {
+          const raw = String(col || '').toUpperCase().trim();
+          if (!raw) return 0;
+          let num = 0;
+          for (let i = 0; i < raw.length; i += 1) {
+            const code = raw.charCodeAt(i) - 64;
+            if (code < 1 || code > 26) continue;
+            num = num * 26 + code;
+          }
+          return num;
+        };
+
+        const wrapTextByMaxLen = (text, maxLen) => {
+          const normalized = String(text || '').replace(/\r\n/g, '\n');
+          const blocks = normalized.split('\n');
+          const lines = [];
+
+          for (const block of blocks) {
+            const trimmed = String(block || '').replace(/\s+/g, ' ').trim();
+            if (!trimmed) {
+              lines.push('');
+              continue;
+            }
+            const words = trimmed.split(' ');
+            let current = '';
+            for (const word of words) {
+              if (!word) continue;
+              if (!current) {
+                if (word.length <= maxLen) {
+                  current = word;
+                } else {
+                  // palabra más larga que el ancho: partirla
+                  for (let i = 0; i < word.length; i += maxLen) {
+                    lines.push(word.slice(i, i + maxLen));
+                  }
+                  current = '';
+                }
+                continue;
+              }
+              if ((current.length + 1 + word.length) <= maxLen) {
+                current = `${current} ${word}`;
+                continue;
+              }
+              lines.push(current);
+              if (word.length <= maxLen) {
+                current = word;
+              } else {
+                for (let i = 0; i < word.length; i += maxLen) {
+                  lines.push(word.slice(i, i + maxLen));
+                }
+                current = '';
+              }
+            }
+            if (current) lines.push(current);
+          }
+
+          return lines;
+        };
+
+        const fillObservaciones = (sheet, text) => {
+          const config = formatoSeleccionado?.observaciones;
+          if (!config) return;
+          const rawText = sanitizeString(text);
+          const startRow = Number(config.startRow);
+          const endRow = Number(config.endRow);
+          const startCol = String(config.startCol || 'A').toUpperCase();
+          const endCol = String(config.endCol || 'BP').toUpperCase();
+          if (!startRow || !endRow || endRow < startRow) return;
+
+          const maxLines = endRow - startRow + 1;
+          const maxLen = Math.max(1, columnLetterToNumber(endCol) - columnLetterToNumber(startCol) + 1);
+          const lines = rawText ? wrapTextByMaxLen(rawText, maxLen) : [];
+
+          for (let i = 0; i < maxLines; i += 1) {
+            const row = startRow + i;
+            const line = lines[i] || '';
+            // Las celdas suelen estar combinadas desde A..(BP/BQ/BR/BS)
+            const addr = `${startCol}${row}`;
+            setMergedCellValue(sheet, addr, line, {
+              font: { name: 'Arial', size: 9, bold: false },
+              alignment: { horizontal: 'left', vertical: 'top', wrapText: false }
+            });
+          }
+        };
+
         const fillInstitutionData = (sheet) => {
           setCellValue(sheet, 'V', 6, INSTITUTION_INFO.codigo, { alignLeft: true });
           setCellValue(sheet, 'BH', 6, INSTITUTION_INFO.denominacion, { alignLeft: true });
@@ -798,20 +915,18 @@ export async function POST(request) {
           const nombreColumn = formatoSeleccionado.remisionNombreColumn || 'J';
           const cedulaColumn = formatoSeleccionado.remisionCedulaColumn || 'J';
           
-          const cellFecha = sheet.getCell(`B${fechaRow}`);
-          cellFecha.value = `VII. Fecha de Remisión: ${todayFormatted}`;
-          cellFecha.font = { name: 'Arial', size: 9, bold: true };
-          cellFecha.alignment = { horizontal: 'left', vertical: 'middle' };
+          setMergedCellValue(sheet, `B${fechaRow}`, `VIII. Fecha de Remisión: ${todayFormatted}`, {
+            font: { name: 'Arial', size: 9, bold: true },
+            alignment: { horizontal: 'left', vertical: 'middle' }
+          });
           
-          const directorCell = sheet.getCell(`${nombreColumn}${nombreRow}`);
-          directorCell.value = INSTITUTION_INFO.directora;
-          directorCell.font = { name: 'Arial', size: 9, bold: false };
-          directorCell.alignment = undefined;
+          setMergedCellValue(sheet, `${nombreColumn}${nombreRow}`, INSTITUTION_INFO.directora, {
+            font: { name: 'Arial', size: 9, bold: false }
+          });
           
-          const cedulaCell = sheet.getCell(`${cedulaColumn}${cedulaRow}`);
-          cedulaCell.value = INSTITUTION_INFO.directoraCedula || 'X';
-          cedulaCell.font = { name: 'Arial', size: 9, bold: false };
-          cedulaCell.alignment = undefined;
+          setMergedCellValue(sheet, `${cedulaColumn}${cedulaRow}`, INSTITUTION_INFO.directoraCedula || 'X', {
+            font: { name: 'Arial', size: 9, bold: false }
+          });
         };
 
         const fillAcademicInfo = (sheet, evaluacionLabel) => {
@@ -840,6 +955,38 @@ export async function POST(request) {
               alignLeft: true,
               font: { name: 'Arial', size: 9, bold: true }
             });
+          }
+        };
+
+        const fillAnioCursado = (sheet) => {
+          if (!anioCursadoLabel) return;
+          try {
+            const needle = 'ano cursado';
+            let found = null;
+            sheet.eachRow({ includeEmpty: false }, (row) => {
+              if (found) return;
+              row.eachCell({ includeEmpty: false }, (cell) => {
+                if (found) return;
+                const v = cell?.value;
+                const text =
+                  v && typeof v === 'object'
+                    ? Array.isArray(v.richText)
+                      ? v.richText.map((t) => t.text).join('')
+                      : v.result || v.text || ''
+                    : v;
+                const norm = normalize(String(text || ''));
+                if (norm.includes(needle)) {
+                  found = { row: cell.row, col: cell.col };
+                }
+              });
+            });
+            if (!found) return;
+            const target = sheet.getCell(found.row + 1, found.col);
+            target.value = anioCursadoLabel;
+            // Mantener estilo existente; solo asegurar centrado (por si la celda no lo está)
+            target.alignment = { ...(target.alignment || {}), horizontal: 'center', vertical: 'middle' };
+          } catch (e) {
+            console.warn('No se pudo escribir AÑO CURSADO:', e?.message || e);
           }
         };
 
@@ -1079,8 +1226,12 @@ export async function POST(request) {
             pageTotalCell.font = pageTotalCell.font || { name: 'Arial', size: 9, bold: false };
           }
 
+          if (options.observaciones) {
+            fillObservaciones(sheet, options.observaciones);
+          }
           fillInstitutionData(sheet);
           fillAcademicInfo(sheet, tipoEvaluacionLabel);
+          fillAnioCursado(sheet);
           fillRemisionSection(sheet);
         };
 
@@ -1095,7 +1246,8 @@ export async function POST(request) {
           docentes: docentesParaPlanilla,
           seccion,
           totalGeneral: totalEstudiantes,
-          totalPagina: firstChunk.length
+          totalPagina: firstChunk.length,
+          observaciones
         });
 
         for (let chunkIndex = 1; chunkIndex < studentsChunks.length; chunkIndex += 1) {
@@ -1107,7 +1259,8 @@ export async function POST(request) {
             docentes: docentesParaPlanilla,
             seccion,
             totalGeneral: totalEstudiantes,
-            totalPagina: currentChunk.length
+            totalPagina: currentChunk.length,
+            observaciones
           });
           const newSheet = baseWorkbook.addWorksheet(sheetName);
           copySheetContents(tempSheet, newSheet, tempImages, baseWorkbook);

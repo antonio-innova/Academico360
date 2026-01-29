@@ -138,6 +138,8 @@ const createEmptyCertificadoForm = () => ({
     anioEscolarInicio: '',
     anioEscolarFin: '',
     mesReporte: '',
+    anioCursadoFormato: 'letra', // 'letra' (Primero) | 'numero' (1ero)
+    observaciones: '',
     tipoReporte: 'resumen-final'
   }
 });
@@ -1588,12 +1590,38 @@ export default function SidebarPage() {
     init();
   }, []);
 
-  // Cargar planteles personalizados cuando se active la pestaña de personalización o notas certificadas
+  // Cargar planteles personalizados y director cuando se active la pestaña de personalización o notas certificadas
   useEffect(() => {
     if (activeTab === 'personalizacion' || activeTab === 'notasCertificadas') {
       loadPlantelesPersonalizados();
+      loadDirectorConfig();
     }
   }, [activeTab]);
+
+  // Función para cargar el director (configuración global)
+  const loadDirectorConfig = async () => {
+    try {
+      setLoadingDirector(true);
+      const response = await fetch('/api/director');
+      const result = await response.json();
+
+      if (response.ok && result.success) {
+        const data = result.data || null;
+        setDirectorActual(data);
+        setDirectorForm({
+          nombre: data?.nombre || '',
+          cedula: data?.cedula || ''
+        });
+      } else {
+        setNotification({ type: 'error', message: result.message || 'Error al cargar director' });
+      }
+    } catch (error) {
+      console.error('Error al cargar director:', error);
+      setNotification({ type: 'error', message: 'Error al cargar director' });
+    } finally {
+      setLoadingDirector(false);
+    }
+  };
 
   // Función para cargar planteles personalizados
   const loadPlantelesPersonalizados = async () => {
@@ -1648,6 +1676,39 @@ export default function SidebarPage() {
     } catch (error) {
       console.error('Error al guardar plantel:', error);
       setNotification({ type: 'error', message: 'Error al guardar plantel' });
+    }
+  };
+
+  // Guardar/actualizar Director (configuración global)
+  const handleSaveDirector = async () => {
+    try {
+      const nombre = String(directorForm?.nombre || '').trim();
+      const cedula = String(directorForm?.cedula || '').trim();
+
+      if (!nombre || !cedula) {
+        setNotification({ type: 'error', message: 'Nombre y cédula del director son requeridos' });
+        return;
+      }
+
+      setSavingDirector(true);
+      const response = await fetch('/api/director', {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nombre, cedula })
+      });
+
+      const result = await response.json();
+      if (response.ok && result.success) {
+        setNotification({ type: 'success', message: 'Director guardado' });
+        await loadDirectorConfig();
+      } else {
+        setNotification({ type: 'error', message: result.message || 'Error al guardar director' });
+      }
+    } catch (error) {
+      console.error('Error al guardar director:', error);
+      setNotification({ type: 'error', message: 'Error al guardar director' });
+    } finally {
+      setSavingDirector(false);
     }
   };
 
@@ -1777,6 +1838,12 @@ export default function SidebarPage() {
   const [loadingPlanteles, setLoadingPlanteles] = useState(false);
   const [plantelForm, setPlantelForm] = useState({ nombre: '', localidad: '', ef: '' });
   const [editingPlantel, setEditingPlantel] = useState(null);
+
+  // Estados para Director (configuración global)
+  const [directorForm, setDirectorForm] = useState({ nombre: '', cedula: '' });
+  const [directorActual, setDirectorActual] = useState(null);
+  const [loadingDirector, setLoadingDirector] = useState(false);
+  const [savingDirector, setSavingDirector] = useState(false);
   
   const [previewNotasVisible, setPreviewNotasVisible] = useState(false);
   const [previewNotasHtml, setPreviewNotasHtml] = useState('');
@@ -2098,6 +2165,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     const anioInicio = (resumenFinalData.anioEscolarInicio || '').trim();
     const anioFin = (resumenFinalData.anioEscolarFin || '').trim();
     const mesSeleccionado = (resumenFinalData.mesReporte || '').trim();
+    const anioCursadoFormato = (resumenFinalData.anioCursadoFormato || 'letra').trim();
+    const observacionesTexto = String(resumenFinalData.observaciones || '').trim();
     // Priorizar el valor del select (tipoReporte) ya que es el que el usuario ve y cambia
     const tipoEvaluacionSeleccionado = (resumenFinalData.tipoReporte || form?.tipoEvaluacion || 'resumen-final').trim();
     console.log('[Frontend] Tipo de evaluación a enviar:', {
@@ -2188,6 +2257,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       formData.append('anioEscolarInicio', anioInicio);
       formData.append('anioEscolarFin', anioFin);
       formData.append('mesReporte', mesSeleccionado);
+      formData.append('anioCursadoFormato', anioCursadoFormato);
+      if (observacionesTexto) formData.append('observaciones', observacionesTexto);
       formData.append('excelEstudiantes', excelEstudiantes);
       formData.append('excelDocentes', excelDocentes);
 
@@ -2236,6 +2307,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
           anioEscolarInicio: '',
           anioEscolarFin: '',
           mesReporte: '',
+          anioCursadoFormato: 'letra',
+          observaciones: '',
           tipoReporte: 'resumen-final'
         }
       });
@@ -2272,6 +2345,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
         anioEscolarInicio: '',
         anioEscolarFin: '',
         mesReporte: '',
+        anioCursadoFormato: 'letra',
+        observaciones: '',
         tipoReporte: 'resumen-final'
       };
     // Siempre validar los campos de Resumen Final ya que siempre mostramos esa interfaz
@@ -2339,6 +2414,18 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     const handleResumenFinalMesChange = (value) => {
       updateCertificadoForm(tabKey, {
         resumenFinal: { mesReporte: value.toUpperCase() }
+      });
+    };
+
+    const handleResumenFinalAnioCursadoFormatoChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { anioCursadoFormato: value }
+      });
+    };
+
+    const handleResumenFinalObservacionesChange = (value) => {
+      updateCertificadoForm(tabKey, {
+        resumenFinal: { observaciones: value }
       });
     };
 
@@ -2475,6 +2562,32 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 {!resumenSeccionValida && (
                   <p className="text-xs text-red-600">Debes indicar la sección.</p>
                 )}
+              </div>
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Año cursado (formato)</label>
+                <select
+                  id={getId('select-anio-cursado-formato')}
+                  value={resumenFinalData.anioCursadoFormato || 'letra'}
+                  onChange={(e) => handleResumenFinalAnioCursadoFormatoChange(e.target.value)}
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                >
+                  <option value="letra">En letra (Primero, Segundo, ...)</option>
+                  <option value="numero">En número (1ero, 2do, ...)</option>
+                </select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4">
+              <div className="flex flex-col gap-2">
+                <label className="text-xs font-semibold text-gray-700 uppercase tracking-wide">Observaciones (opcional)</label>
+                <textarea
+                  id={getId('textarea-observaciones')}
+                  value={resumenFinalData.observaciones || ''}
+                  onChange={(e) => handleResumenFinalObservacionesChange(e.target.value)}
+                  rows={3}
+                  placeholder="Escribe aquí las observaciones. Se imprimirán en el bloque de Observaciones del formato, con saltos automáticos por línea."
+                  className="border rounded-md px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-400 focus:border-amber-400"
+                />
               </div>
             </div>
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -11159,6 +11272,73 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 </table>
               </div>
             )}
+          </div>
+
+          {/* Director (configuración global) */}
+          <div className="border-t border-gray-200 my-8"></div>
+          <div>
+            <div className="flex flex-col md:flex-row md:items-end md:justify-between gap-3 mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-gray-700">Director (Notas Certificadas)</h3>
+                <p className="text-sm text-gray-500">
+                  Estos datos se guardan de forma permanente en Mongo y luego se usarán en las Notas Certificadas.
+                </p>
+              </div>
+              {(directorActual?.nombre || directorActual?.cedula) && (
+                <div className="text-xs text-gray-600 bg-gray-100 border border-gray-200 rounded px-3 py-2">
+                  <span className="font-semibold">Actual:</span>{' '}
+                  <span>{directorActual?.nombre || '—'}</span>{' '}
+                  <span className="text-gray-400">·</span>{' '}
+                  <span>C.I. {directorActual?.cedula || '—'}</span>
+                </div>
+              )}
+            </div>
+
+            <div className="bg-gray-50 rounded-lg p-6">
+              {loadingDirector ? (
+                <div className="flex justify-center items-center py-6">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500"></div>
+                </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Apellidos y Nombres del Director(a) *</label>
+                      <input
+                        type="text"
+                        value={directorForm.nombre}
+                        onChange={(e) => setDirectorForm((prev) => ({ ...prev, nombre: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ej: Pérez González Juan Carlos"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-2">Cédula del Director(a) *</label>
+                      <input
+                        type="text"
+                        value={directorForm.cedula}
+                        onChange={(e) => setDirectorForm((prev) => ({ ...prev, cedula: e.target.value }))}
+                        className="w-full border border-gray-300 rounded-md px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        placeholder="Ej: 12345678"
+                      />
+                    </div>
+                  </div>
+                  <div className="flex gap-3 mt-4">
+                    <button
+                      onClick={handleSaveDirector}
+                      disabled={savingDirector}
+                      className={`px-4 py-2 rounded-md transition-colors font-medium ${
+                        savingDirector
+                          ? 'bg-gray-300 text-gray-600 cursor-not-allowed'
+                          : 'bg-blue-600 text-white hover:bg-blue-700'
+                      }`}
+                    >
+                      {savingDirector ? 'Guardando...' : 'Guardar Director'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

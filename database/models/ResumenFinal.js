@@ -56,6 +56,7 @@ const ResumenFinalSchema = new mongoose.Schema(
     anioEscolarInicio: { type: String, default: '' },
     anioEscolarFin: { type: String, default: '' },
     mesReporte: { type: String, default: '' },
+    observaciones: { type: String, default: '' },
     totales: {
       estudiantes: { type: Number, default: 0 },
       docentes: { type: Number, default: 0 }

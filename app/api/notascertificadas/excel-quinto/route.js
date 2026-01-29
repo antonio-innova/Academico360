@@ -6,6 +6,7 @@ import { connectDB } from '@/database/db';
 import Aula from '@/database/models/Aula';
 import Estudiante from '@/database/models/Estudiante';
 import NotaCertificada from '@/database/models/NotaCertificada';
+import Director from '@/database/models/Director';
 
 const debugLogNotasPayload = (context, data) => {
   try {
@@ -67,6 +68,33 @@ export async function POST(request) {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.readFile(templatePath);
     const ws = workbook.worksheets[0];
+
+    // Denominación y Epónimo (Institución): centrar y MAYÚSCULAS en J6 (normalmente celda combinada)
+    try {
+      const pickText = (...values) => {
+        for (const v of values) {
+          if (v === undefined || v === null) continue;
+          const s = String(v).trim();
+          if (s) return s;
+        }
+        return '';
+      };
+      const raw =
+        pickText(
+          institucion?.denominacion,
+          institucion?.denominacionEponimo,
+          institucion?.nombre,
+          institucion?.cdcee
+        ) ||
+        pickText(notaFromCert?.institucion?.denominacion, notaFromCert?.institucion?.denominacionEponimo, notaFromCert?.institucion?.cdcee);
+
+      const cell = ws.getCell('J6');
+      const master = cell.isMerged ? cell.master : cell;
+      const current = String(getCellText(master) || '').trim();
+      const upper = String(raw || current || '').toUpperCase();
+      if (upper) master.value = upper;
+      master.alignment = { ...(master.alignment || {}), horizontal: 'center', vertical: 'middle', wrapText: true };
+    } catch {}
 
     // Configuración para formato quinto (1-5 año)
     const HEADER_CELLS = {
@@ -285,6 +313,16 @@ export async function POST(request) {
       }
     } catch (error) {
       console.error('❌ Error al escribir planteles:', error);
+    }
+
+    // Director(a) (configuración global) -> B63 (Apellidos y Nombres) y B65 (Cédula) para formato 1-5
+    try {
+      await connectDB();
+      const director = await Director.findOne({ key: 'global' }).lean();
+      if (director?.nombre) ws.getCell('B63').value = director.nombre;
+      if (director?.cedula) ws.getCell('B65').value = director.cedula;
+    } catch (error) {
+      console.warn('No se pudo escribir Director(a) en el Excel (1-5):', error);
     }
 
     const writeRow = (row, values, yearCols) => {

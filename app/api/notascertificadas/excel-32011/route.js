@@ -308,7 +308,14 @@ export async function POST(request) {
     };
 
     ws.getCell('C6').value = institucionData.codigo || '';
-    ws.getCell('J6').value = institucionData.denominacion || '';
+    {
+      const raw = institucionData.denominacion || '';
+      const cell = ws.getCell('J6');
+      const master = cell.isMerged ? cell.master : cell;
+      const upper = String(raw || '').toUpperCase();
+      if (upper) master.value = upper;
+      master.alignment = { ...(master.alignment || {}), horizontal: 'center', vertical: 'middle', wrapText: true };
+    }
     ws.getCell('E7').value = institucionData.direccion || '';
     ws.getCell('Q7').value = institucionData.telefono || '';
     ws.getCell('C8').value = institucionData.municipio || '';
