@@ -15,7 +15,7 @@ export async function GET(request) {
     const searchParams = request.nextUrl.searchParams;
     const momento = parseInt(searchParams.get('momento') || '1', 10);
 
-    if (![1, 2, 3].includes(momento)) {
+    if (![1, 2, 3, 4].includes(momento)) {
       return NextResponse.json({ 
         success: false, 
         message: 'Momento inválido (debe ser 1, 2 o 3)' 

@@ -168,11 +168,11 @@ export async function GET(request) {
 
             const actividades = Array.isArray(asig.actividades) ? asig.actividades : [];
 
-            // Agrupar notas por momento
-            const momentos = { 1: [], 2: [], 3: [] };
+            // Agrupar notas por momento (incluye 4 para aulas de nota pendiente)
+            const momentos = { 1: [], 2: [], 3: [], 4: [] };
             for (const act of actividades) {
               const m = parseInt(act.momento);
-              if (![1,2,3].includes(m)) continue;
+              if (![1,2,3,4].includes(m)) continue;
               if (!Array.isArray(act.calificaciones)) continue;
               const cal = act.calificaciones.find(c => (c.alumnoId?.toString?.() || String(c.alumnoId)) === estudianteId);
               if (!cal) continue;
@@ -204,14 +204,19 @@ export async function GET(request) {
             const m1 = calcularProm(momentos[1], noCuant);
             const m2 = calcularProm(momentos[2], noCuant);
             const m3 = calcularProm(momentos[3], noCuant);
+            const m4 = calcularProm(momentos[4], noCuant);
 
-            // Final: para cuantitativas, promedio entero de M1..M3; para no cuantitativas, usar el último valor no 'N/P'
+            // Final: promedio de M1..M3 o M1..M4 según aula pendiente
+            const esAulaPendiente = aula?.esPendiente === true;
             let final = 'N/P';
             if (noCuant) {
-              const candidatos = [m3, m2, m1].filter(v => v !== 'N/P');
-              final = candidatos.length ? candidatos[0] : 'N/P';
-                } else {
-              const nums = [m1, m2, m3]
+              const candidatos = esAulaPendiente ? [m4, m3, m2, m1] : [m3, m2, m1];
+              const vals = candidatos.filter(v => v !== 'N/P');
+              final = vals.length ? vals[0] : 'N/P';
+            } else {
+              const numsBase = [m1, m2, m3];
+              if (esAulaPendiente) numsBase.push(m4);
+              const nums = numsBase
                 .map(v => parseFloat(v))
                 .filter(v => !isNaN(v));
               if (nums.length) {
@@ -220,7 +225,7 @@ export async function GET(request) {
               }
             }
 
-            materiaToMomentos[nombreMateria] = { m1, m2, m3, final };
+            materiaToMomentos[nombreMateria] = { m1, m2, m3, m4, final };
           }
 
           return {
@@ -257,6 +262,8 @@ export async function GET(request) {
             columnasMateriaExpandidas.push(`${mat} M1`, `${mat} M2`);
           } else if (momentoSeleccion === '3') {
             columnasMateriaExpandidas.push(`${mat} M3`);
+          } else if (momentoSeleccion === '4') {
+            columnasMateriaExpandidas.push(`${mat} M4`);
           } else if (momentoSeleccion === 'final') {
             columnasMateriaExpandidas.push(`${mat} Final`);
           } else {
@@ -281,13 +288,15 @@ export async function GET(request) {
         estudiantesConNotas.forEach(est => {
           const base = [est.orden, est.cedula, est.apellido, est.nombre];
           materiasHeaders.forEach(mat => {
-            const mm = est.materiaToMomentos[mat] || { m1: 'N/P', m2: 'N/P', m3: 'N/P', final: 'N/P' };
+            const mm = est.materiaToMomentos[mat] || { m1: 'N/P', m2: 'N/P', m3: 'N/P', m4: 'N/P', final: 'N/P' };
             if (momentoSeleccion === '1') {
               base.push(formatearNota(mm.m1));
             } else if (momentoSeleccion === '2') {
               base.push(formatearNota(mm.m1), formatearNota(mm.m2));
             } else if (momentoSeleccion === '3') {
               base.push(formatearNota(mm.m3));
+            } else if (momentoSeleccion === '4') {
+              base.push(formatearNota(mm.m4));
             } else if (momentoSeleccion === 'final') {
               base.push(formatearNota(mm.final));
             } else {
@@ -317,7 +326,7 @@ export async function GET(request) {
             cols.push({ wch: 8 });
           } else if (momentoSeleccion === '2') {
             cols.push({ wch: 8 }, { wch: 8 });
-          } else if (momentoSeleccion === '3' || momentoSeleccion === 'final') {
+          } else if (momentoSeleccion === '3' || momentoSeleccion === '4' || momentoSeleccion === 'final') {
             cols.push({ wch: 10 });
           } else {
             cols.push({ wch: 8 }, { wch: 8 }, { wch: 8 }, { wch: 10 });
@@ -326,7 +335,7 @@ export async function GET(request) {
         ws['!cols'] = cols;
 
         const nombreAula = `${aula.anio || ''}${aula.seccion || ''}`.trim() || 'Aula';
-        const sufijo = ['1','2','3','final'].includes(momentoSeleccion)
+        const sufijo = ['1','2','3','4','final'].includes(momentoSeleccion)
           ? `_${momentoSeleccion.toUpperCase()}`
           : '_M1_M2_M3_Final';
         XLSX.utils.book_append_sheet(wb, ws, `Notas ${nombreAula}${sufijo}`);

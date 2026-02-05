@@ -38,12 +38,12 @@ export async function POST(request, { params }) {
       }, { status: 400 });
     }
 
-    // Validar que el momento sea un número entre 1 y 3
-    if (![1, 2, 3].includes(Number(momento))) {
+    // Validar que el momento sea un número entre 1 y 4
+    if (![1, 2, 3, 4].includes(Number(momento))) {
       console.log('❌ Momento inválido:', momento);
       return NextResponse.json({
         success: false,
-        message: 'El momento debe ser 1, 2 o 3'
+        message: 'El momento debe ser 1, 2, 3 o 4'
       }, { status: 400 });
     }
 
@@ -150,12 +150,13 @@ export async function GET(request, { params }) {
     const estadoMomentos = {
       1: { bloqueadas: 0, total: 0 },
       2: { bloqueadas: 0, total: 0 },
-      3: { bloqueadas: 0, total: 0 }
+      3: { bloqueadas: 0, total: 0 },
+      4: { bloqueadas: 0, total: 0 }
     };
 
     if (aula.asignaciones && Array.isArray(aula.asignaciones)) {
       for (const asignacion of aula.asignaciones) {
-        for (let momento = 1; momento <= 3; momento++) {
+        for (let momento = 1; momento <= 4; momento++) {
           estadoMomentos[momento].total++;
           if (asignacion.momentosBloqueados && asignacion.momentosBloqueados[momento] === true) {
             estadoMomentos[momento].bloqueadas++;
@@ -169,7 +170,8 @@ export async function GET(request, { params }) {
     const momentosBloqueados = {
       1: estadoMomentos[1].bloqueadas === estadoMomentos[1].total && estadoMomentos[1].total > 0,
       2: estadoMomentos[2].bloqueadas === estadoMomentos[2].total && estadoMomentos[2].total > 0,
-      3: estadoMomentos[3].bloqueadas === estadoMomentos[3].total && estadoMomentos[3].total > 0
+      3: estadoMomentos[3].bloqueadas === estadoMomentos[3].total && estadoMomentos[3].total > 0,
+      4: estadoMomentos[4].bloqueadas === estadoMomentos[4].total && estadoMomentos[4].total > 0
     };
 
     console.log('📊 Estado final de momentos:', momentosBloqueados);

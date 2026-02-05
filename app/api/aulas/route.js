@@ -10,9 +10,24 @@ export async function GET(request) {
   try {
     await connectDB();
 
-    // Obtener todas las aulas activas
-    const aulas = await Aula.find({ estado: 1 })
-      .sort({ nombre: 1, anio: 1, seccion: 1 });
+    // Obtener todas las aulas activas con proyección ligera para acelerar la respuesta
+    const aulas = await Aula.find(
+      { estado: 1 },
+      {
+        _id: 1,
+        nombre: 1,
+        anio: 1,
+        seccion: 1,
+        turno: 1,
+        periodo: 1,
+        alumnos: 1,
+        asignaciones: 1,
+        esPendiente: 1,
+        momentosBloqueados: 1
+      }
+    )
+      .sort({ nombre: 1, anio: 1, seccion: 1 })
+      .lean();
 
     return NextResponse.json({
       success: true,
@@ -76,7 +91,8 @@ export async function POST(request) {
       })),
       creadoPor: data.creadoPor,
       tipoCreador: data.tipoCreador,
-      estado: 1
+      estado: 1,
+      esPendiente: Boolean(data.esPendiente)
     };
     
     const nuevaAula = new Aula(aulaData);

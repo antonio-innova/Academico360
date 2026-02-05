@@ -116,8 +116,8 @@ function CalificacionesContent() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [actividadesVisible, setActividadesVisible] = useState(true); // Estado para controlar la visibilidad de la tabla
-  const [momentoActivo, setMomentoActivo] = useState(1); // Estado para controlar qué momento se muestra (1, 2 o 3)
-  const [momentosBloqueados, setMomentosBloqueados] = useState({1: false, 2: false, 3: false}); // Estado para controlar qué momentos están bloqueados
+  const [momentoActivo, setMomentoActivo] = useState(1); // Estado para controlar qué momento se muestra (1, 2, 3 o 4)
+  const [momentosBloqueados, setMomentosBloqueados] = useState({1: false, 2: false, 3: false, 4: false}); // Estado para controlar qué momentos están bloqueados
   const [puntosAdicionales, setPuntosAdicionales] = useState({}); // Estado para los puntos adicionales por alumno
   const [guardandoPuntos, setGuardandoPuntos] = useState(false);
   const [mensajePuntos, setMensajePuntos] = useState({ texto: '', tipo: '' });
@@ -127,6 +127,7 @@ function CalificacionesContent() {
   const [puntosMomento1, setPuntosMomento1] = useState({}); // Estado para puntos extras por momento 1
   const [puntosMomento2, setPuntosMomento2] = useState({}); // Estado para puntos extras por momento 2
   const [puntosMomento3, setPuntosMomento3] = useState({}); // Estado para puntos extras por momento 3
+  const [puntosMomento4, setPuntosMomento4] = useState({}); // Estado para puntos extras por momento 4
   const [guardandoPuntosMomento, setGuardandoPuntosMomento] = useState(false); // Estado para guardar puntos extras por momento
   const [mensajePuntosMomento, setMensajePuntosMomento] = useState(null); // Estado para mensaje de puntos extras por momento
   const [mensajePromedios, setMensajePromedios] = useState({ texto: '', tipo: '' }); // Estado para mensaje de puntos extras por momento
@@ -3259,6 +3260,43 @@ const handleSeleccionActividad = (actividadId) => {
                   📊 Planilla
                 </button>
               </div>
+
+              {asignacion?.aula?.esPendiente && (
+                <div className={styles.momentoButtonGroup}>
+                  <button 
+                    className={`${styles.momentoButton} ${momentoActivo === 4 ? styles.activeMomento : ''}`}
+                    onClick={() => {
+                      console.log('CAMBIANDO A MOMENTO 4');
+                      console.log('Estado actual puntosMomento4:', puntosMomento4);
+                      
+                      setMomentoActivo(4);
+                      
+                      const puntosMomento4Copiados = {...puntosMomento4};
+                      setPuntosAdicionalesResumen(puntosMomento4Copiados);
+                      
+                      setTimeout(() => {
+                        console.log('Puntos actualizados para Momento 4:', puntosMomento4Copiados);
+                      }, 100);
+                    }}
+                  >
+                    Cuarto Momento
+                  </button>
+                  <button 
+                    className={`${styles.lockButton} ${momentosBloqueados[4] ? styles.locked : styles.unlocked} ${ocultarCandadoCSS('candadoBloqueo')}`}
+                    onClick={() => toggleBloqueoMomento(4)}
+                    title={momentosBloqueados[4] ? 'Desbloquear momento' : 'Bloquear momento'}
+                  >
+                    {momentosBloqueados[4] ? '🔒' : '🔓'}
+                  </button>
+                  <button 
+                    className="px-3 py-1 bg-green-600 hover:bg-green-700 text-white text-sm rounded-md transition-colors duration-200 flex items-center gap-1"
+                    onClick={() => generarPlanillaMomento(4)}
+                    title="Generar planilla Excel del Cuarto Momento"
+                  >
+                    📊 Planilla
+                  </button>
+                </div>
+              )}
             </div>
             <div style={{ marginLeft: 'auto' }}>
               <button
@@ -4448,6 +4486,218 @@ const handleSeleccionActividad = (actividadId) => {
               </table>
               </div>
             )}
+
+            {/* TABLA DEL CUARTO MOMENTO (solo si el aula es de Nota Pendiente) */}
+            {asignacion?.aula?.esPendiente && momentoActivo === 4 && (
+              <div className={styles.momentSection}>
+                <div className={styles.momentHeader}>
+                  <h3 className={styles.momentTitle}>Calificaciones del Cuarto Momento</h3>
+                  <div className={styles.botonesContainer}>
+                    {esControl() && (
+                      <button 
+                        className={styles.botonGuardar} 
+                        onClick={() => guardarPuntosMomento('momento4')} 
+                        disabled={guardandoPuntosMomento || momentosBloqueados[4]}
+                      >
+                        {guardandoPuntosMomento ? 'Guardando...' : 'Guardar Puntos Extras'}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {mensajePuntosMomento && (
+                  <div className={`${styles.mensaje} ${mensajePuntosMomento.tipo === 'error' ? styles.mensajeError : styles.mensajeExito}`}>
+                    {mensajePuntosMomento.texto}
+                  </div>
+                )}
+                <table className={styles.table}>
+                  <thead>
+                    <tr>
+                      <th>Alumno</th>
+                      {actividades
+                        .filter(act => {
+                          const momento = typeof act.momento === 'string' ? Number(act.momento) : act.momento;
+                          return momento === 4;
+                        })
+                        .map((actividad) => (
+                          <th key={actividad._id}>{actividad.nombre}</th>
+                        ))}
+                      <th>Promedio</th>
+                      <th>Puntos Extras</th>
+                      <th>Final</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {alumnos.map((alumno) => {
+                      const alumnoId = alumno._id || alumno.id;
+                      const actividadesMomento = actividades.filter(act => {
+                        const momento = typeof act.momento === 'string' ? Number(act.momento) : act.momento;
+                        return momento === 4;
+                      });
+
+                      const calificacionesValidas = actividadesMomento.reduce((acumulado, actividad) => {
+                        const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
+                        if (!calificacion) return acumulado;
+
+                        let notaConvertida = null;
+                        if (calificacion.tipoCalificacion === 'alfabetica') {
+                          notaConvertida = convertirLetraANota(calificacion.notaAlfabetica);
+                        } else if (calificacion.nota !== null && calificacion.nota !== undefined) {
+                          notaConvertida = parseFloat(calificacion.nota);
+                        }
+
+                        if (notaConvertida === null || Number.isNaN(notaConvertida)) {
+                          return acumulado;
+                        }
+
+                        acumulado.push({
+                          nota: notaConvertida,
+                          porcentaje: parseFloat(actividad.porcentaje) || 0
+                        });
+                        return acumulado;
+                      }, []);
+                      
+                      let promedioNumerico = null;
+                      if (calificacionesValidas.length > 0) {
+                        const sumaPonderada = calificacionesValidas.reduce(
+                          (sum, item) => sum + (item.nota * (item.porcentaje / 100)),
+                          0
+                        );
+                        promedioNumerico = sumaPonderada;
+
+                        if (!Number.isFinite(promedioNumerico)) {
+                          promedioNumerico = null;
+                        }
+                      }
+                      
+                      const promedio = promedioNumerico !== null ? Math.round(promedioNumerico) : 'N/A';
+
+                      return (
+                        <tr key={`alumno-${alumnoId}`}>
+                          <td>
+                            <StudentNameById studentId={alumnoId} fallback={alumno} />
+                          </td>
+                          {actividadesMomento.map((actividad) => {
+                            const calificacion = actividad.calificaciones?.find(c => c.alumnoId === alumnoId);
+                            return (
+                              <td key={`cal-${alumnoId}-${actividad._id}`}>
+                                <div>
+                                  {calificacion ? (
+                                    <>
+                                      {calificacion.tipoCalificacion === 'alfabetica' ? (
+                                        <span title={`Nota numérica equivalente: ${calificacion.nota}`}>
+                                          {calificacion.notaAlfabetica || 'N/A'}
+                                        </span>
+                                      ) : calificacion.tipoCalificacion === 'np' ? (
+                                        <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="No Presentó">
+                                          NP
+                                        </span>
+                                      ) : calificacion.tipoCalificacion === 'inasistente' ? (
+                                        <span style={{ color: '#FF9800', fontWeight: 'bold' }} title="Inasistente">
+                                          I
+                                        </span>
+                                      ) : (
+                                        <span title={`Nota alfabética equivalente: ${calificacion.notaAlfabetica || 'N/A'}`}>
+                                          {calificacion.nota !== null && calificacion.nota !== undefined ? calificacion.nota : 'N/A'}
+                                        </span>
+                                      )}
+                                    </>
+                                  ) : 'N/A'}
+                                </div>
+                                <button 
+                                  className={styles.smallButton}
+                                  onClick={() => {
+                                    if (calificacion) {
+                                      openEditCalificacionForm(actividad, calificacion);
+                                    } else {
+                                      setCalificacionFormData({
+                                        actividadId: actividad._id,
+                                        alumnoId: alumnoId,
+                                        nota: 10,
+                                        notaAlfabetica: 'C',
+                                        tipoCalificacion: 'numerica',
+                                        modoEdicion: false,
+                                        calificacionId: null,
+                                        observaciones: ''
+                                      });
+                                      setShowCalificacionForm(true);
+                                    }
+                                  }}
+                                >
+                                  {calificacion ? 'Editar' : 'Calificar'}
+                                </button>
+                              </td>
+                            );
+                          })}
+
+                          <td>
+                            <span>{promedio}</span>
+                          </td>
+                          <td>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px' }}>
+                              <div style={{ 
+                                fontWeight: 'bold', 
+                                fontSize: '16px',
+                                color: '#4285F4',
+                                backgroundColor: '#E8F0FE',
+                                padding: '3px 8px',
+                                borderRadius: '4px',
+                                border: '1px solid #4285F4',
+                                marginBottom: '5px'
+                              }}>
+                                {puntosMomento4[alumnoId?.toString()] || 0}
+                              </div>
+                              <input
+                                type="number"
+                                min="0"
+                                max="2"
+                                step="0.5"
+                                value={puntosMomento4[alumnoId?.toString()] || 0}
+                                onChange={(e) => {
+                                  const valor = parseFloat(e.target.value);
+                                  if (!isNaN(valor) && valor >= 0 && valor <= 2) {
+                                    handlePuntosMomentoChange('momento4', alumnoId.toString(), valor);
+                                  }
+                                }}
+                                style={{ 
+                                  width: '60px', 
+                                  textAlign: 'center',
+                                  border: '1px solid #ccc',
+                                  borderRadius: '4px',
+                                  padding: '4px',
+                                  backgroundColor: momentosBloqueados[4] ? '#f0f0f0' : 'white',
+                                  cursor: momentosBloqueados[4] ? 'not-allowed' : 'auto'
+                                }}
+                                disabled={momentosBloqueados[4]}
+                              />
+                              <small style={{ marginTop: '4px', color: '#666' }}>Puntos extras</small>
+                            </div>
+                          </td>
+                          <td>
+                            {promedioNumerico !== null ? (
+                              <div style={{ 
+                                fontWeight: 'bold', 
+                                color: (promedioNumerico + (puntosMomento4[alumnoId?.toString()] || 0)) >= 10 ? '#4CAF50' : '#F44336' 
+                              }}>
+                                {(() => {
+                                  const puntosExtra = puntosMomento4[alumnoId?.toString()] || 0;
+                                  const notaFinal = Math.min(20, Math.round(promedioNumerico + puntosExtra));
+                                  
+                                  if (puntosExtra > 0) {
+                                    return `${Math.round(promedioNumerico)}+${puntosExtra}`;
+                                  } else {
+                                    return notaFinal;
+                                  }
+                                })()}
+                              </div>
+                            ) : 'N/A'}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
             </div>
           )}
         </div>
@@ -4515,6 +4765,9 @@ const handleSeleccionActividad = (actividadId) => {
                   <option key="momento-select-1" value="1">Primer Momento</option>
                   <option key="momento-select-2" value="2">Segundo Momento</option>
                   <option key="momento-select-3" value="3">Tercer Momento</option>
+                  {asignacion?.aula?.esPendiente && (
+                    <option key="momento-select-4" value="4">Cuarto Momento</option>
+                  )}
                 </select>
               </div>
               

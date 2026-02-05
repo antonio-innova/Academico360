@@ -207,34 +207,52 @@ export default function ReportesPage() {
   // Cargar las aulas disponibles
   const cargarAulas = async () => {
     try {
+      console.log('🔄 Iniciando carga de aulas...');
       const response = await fetch('/api/aulas');
+      console.log('📡 Respuesta HTTP status:', response.status, response.ok);
+      
       if (!response.ok) {
-        throw new Error('Error al cargar las aulas');
+        throw new Error(`Error al cargar las aulas: ${response.status}`);
       }
+      
       const responseData = await response.json();
-      console.log('Respuesta de API aulas:', responseData);
+      console.log('📦 Respuesta de API aulas completa:', responseData);
+      console.log('✅ responseData.success:', responseData.success);
+      console.log('📋 responseData.data:', responseData.data);
+      console.log('📊 Es array responseData.data?:', Array.isArray(responseData.data));
+      console.log('📈 Longitud:', responseData.data?.length);
       
       // Manejar diferentes estructuras de respuesta posibles
       let aulasData = [];
       if (Array.isArray(responseData)) {
+        console.log('✓ Detectada respuesta como array directo');
         aulasData = responseData;
-      } else if (responseData.data && Array.isArray(responseData.data)) {
+      } else if (responseData.success && responseData.data && Array.isArray(responseData.data)) {
+        console.log('✓ Detectada respuesta con estructura {success, data}');
         aulasData = responseData.data;
       } else if (responseData.aulas && Array.isArray(responseData.aulas)) {
+        console.log('✓ Detectada respuesta con estructura {aulas}');
         aulasData = responseData.aulas;
+      } else {
+        console.warn('⚠️ Estructura de respuesta no reconocida:', responseData);
       }
       
-      console.log('Aulas procesadas:', aulasData);
+      console.log('🎯 Aulas procesadas (final):', aulasData.length, 'aulas');
+      console.log('🔍 Primera aula:', aulasData[0]);
+      
       setAulas(aulasData);
       setAulasFiltradas(aulasData);
       
       // Si hay aulas, seleccionar la primera por defecto
       if (aulasData.length > 0) {
+        console.log('✅ Seleccionando primera aula:', aulasData[0]._id);
         setAulaSeleccionada(aulasData[0]._id);
+      } else {
+        console.warn('⚠️ No hay aulas para mostrar');
       }
     } catch (error) {
-      console.error('Error al cargar aulas:', error);
-      setError('Error al cargar las aulas. Por favor, intenta de nuevo.');
+      console.error('❌ Error al cargar aulas:', error);
+      setError(`Error al cargar las aulas: ${error.message}`);
     }
   };
 
@@ -792,6 +810,9 @@ export default function ReportesPage() {
                 <option value="1">1er Momento</option>
                 <option value="2">2do Momento</option>
                 <option value="3">3er Momento</option>
+                {aulaSeleccionada && aulas.find(a => a._id === aulaSeleccionada)?.esPendiente && (
+                  <option value="4">4to Momento</option>
+                )}
                 <option value="final">Final</option>
               </select>
             </div>
@@ -943,6 +964,9 @@ export default function ReportesPage() {
                 <option value="1">1er Momento</option>
                 <option value="2">2do Momento</option>
                 <option value="3">3er Momento</option>
+                {aulaSeleccionada && aulas.find(a => a._id === aulaSeleccionada)?.esPendiente && (
+                  <option value="4">4to Momento</option>
+                )}
               </select>
             </div>
 
@@ -1030,7 +1054,10 @@ export default function ReportesPage() {
                 <option value="1">1er Momento</option>
                 <option value="2">2do Momento</option>
                 <option value="3">3er Momento</option>
-                <option value="final">Definitiva (Promedio 1M, 2M, 3M)</option>
+                {aulaSeleccionada && aulas.find(a => a._id === aulaSeleccionada)?.esPendiente && (
+                  <option value="4">4to Momento</option>
+                )}
+                <option value="final">Definitiva (Promedio 1M, 2M, 3M{aulaSeleccionada && aulas.find(a => a._id === aulaSeleccionada)?.esPendiente ? ', 4M' : ''})</option>
               </select>
             </div>
 

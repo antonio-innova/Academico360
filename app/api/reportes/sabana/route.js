@@ -70,8 +70,8 @@ export async function GET(request) {
     const aulaId = searchParams.get('aulaId');
     const momento = parseInt(searchParams.get('momento') || '1', 10);
 
-    if (!aulaId || ![1,2,3].includes(momento)) {
-      return NextResponse.json({ success: false, message: 'Parámetros inválidos (aulaId y momento requerido)' }, { status: 400 });
+    if (!aulaId || ![1,2,3,4].includes(momento)) {
+      return NextResponse.json({ success: false, message: 'Parámetros inválidos (aulaId y momento 1-4 requerido)' }, { status: 400 });
     }
 
     const aula = await Aula.findById(aulaId).lean();

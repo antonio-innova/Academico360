@@ -395,6 +395,7 @@ export default function SidebarPage() {
   // Estados para manejar los datos y la interfaz
   const [activeTab, setActiveTab] = useState('aulas'); // Iniciar con aulas como pestaña activa
   const [aulas, setAulas] = useState([]);
+  const [aulasPeriodoFiltro, setAulasPeriodoFiltro] = useState('');
   const [aulaToDelete, setAulaToDelete] = useState(null);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [alert, setAlert] = useState(null); // Estado para manejar las aulas
@@ -1751,6 +1752,7 @@ export default function SidebarPage() {
     seccion: 'A',
     turno: 'Mañana',
     periodo: '',
+    esPendiente: false,
     estudiantes: [],
     materias: []
   });
@@ -3120,26 +3122,11 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
     }
   };
 
-  // Función para cargar periodos existentes
-  const loadPeriodos = async () => {
-    try {
-      const response = await fetch('/api/aulas');
-      const result = await response.json();
-      
-      if (response.ok && result.success) {
-        // Obtener periodos únicos
-        const periodos = [...new Set(result.data.map(aula => aula.periodo))];
-        setPeriodosExistentes(periodos);
-      }
-    } catch (error) {
-      console.error('Error al cargar periodos:', error);
-    }
+  // Función para cargar periodos existentes (se alimenta desde loadAulas para evitar peticiones duplicadas)
+  const loadPeriodos = (aulasData = []) => {
+    const periodos = [...new Set(aulasData.map((aula) => aula.periodo).filter(Boolean))];
+    setPeriodosExistentes(periodos);
   };
-
-  // Cargar periodos al montar el componente
-  useEffect(() => {
-    loadPeriodos();
-  }, []);
   // Estados principales
   const [userType, setUserType] = useState(null); // Estado para almacenar el tipo de usuario
   const [userData, setUserData] = useState(null);
@@ -3835,8 +3822,10 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
       if (response.ok && result.success) {
         console.log('Aulas cargadas:', result.data);
         console.log('Ejemplo de periodo de un aula:', result.data[0]?.periodo);
-      const aulasNormalizadas = (result.data || []).map(normalizeAulaData);
-      setAulas(aulasNormalizadas);
+        const aulasNormalizadas = (result.data || []).map(normalizeAulaData);
+        setAulas(aulasNormalizadas);
+        // Actualizar lista de períodos disponibles a partir de las aulas recibidas
+        loadPeriodos(aulasNormalizadas);
       } else {
         console.error('Error al cargar aulas:', result.message);
       }
@@ -4405,6 +4394,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
         seccion: aulaFormData.seccion,
         turno: aulaFormData.turno,
         periodo: aulaFormData.periodo || '2023-2024',
+        esPendiente: Boolean(aulaFormData.esPendiente),
         alumnos: aulaFormData.alumnos.map(alumno => ({
           _id: alumno._id, // Incluir el ID del estudiante
           nombre: alumno.nombre,
@@ -4437,6 +4427,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
           seccion: 'A',
           turno: 'Mañana',
           periodo: '',
+          esPendiente: false,
           cantidadAlumnos: 0
         });
         setShowAulaForm(false);
@@ -10237,7 +10228,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
               {/* Botones para generar reportes */}
               <div className="section-filters-3">
-                {[1, 2, 3].map(momento => (
+                {(selectedAula && aulas.find(a => a._id === selectedAula)?.esPendiente ? [1, 2, 3, 4] : [1, 2, 3]).map(momento => (
                   <button
                     key={momento}
                     id={`btn-generar-reporte-${momento}`}
@@ -11781,8 +11772,27 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                 activeTab === 'aulas' && 
                 <div className="flex-1 p-8">
                   <div className="flex justify-between items-center mb-6">
-                    <div>
-                      <h1 className="text-2xl font-bold text-gray-800 mb-4">Gestión de Aulas</h1>
+                    <div className="space-y-2">
+                      <h1 className="text-2xl font-bold text-gray-800">Gestión de Aulas</h1>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <label className="text-sm text-gray-700">
+                          <span className="font-medium mr-2">Filtrar por período:</span>
+                          <select
+                            value={aulasPeriodoFiltro}
+                            onChange={(e) => setAulasPeriodoFiltro(e.target.value)}
+                            className="inline-flex px-3 py-1 border border-gray-300 rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                          >
+                            <option value="">Todos</option>
+                            {periodosExistentes
+                              .filter((p) => p && p.trim())
+                              .map((periodo) => (
+                                <option key={periodo} value={periodo}>
+                                  {periodo}
+                                </option>
+                              ))}
+                          </select>
+                        </label>
+                      </div>
                     </div>
                     <div className="flex space-x-3">
                       <button
@@ -11907,10 +11917,31 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
 
                   {/* Grid de Aulas */}
                   <div className="responsive-card-grid gap-6">
-                    {aulas.map((aula) => (
-                      <div key={aula._id} className="bg-white rounded-lg shadow-md overflow-hidden border border-gray-200">
-                        <div className="p-4 border-b border-gray-200 bg-gradient-to-r from-blue-600 to-blue-500">
-                          <h3 className="text-lg font-semibold text-white">{aula.nombre}</h3>
+                    {(aulasPeriodoFiltro
+                      ? aulas.filter((aula) => aula.periodo === aulasPeriodoFiltro)
+                      : aulas
+                    ).map((aula) => (
+                      <div
+                        key={aula._id}
+                        className={`bg-white rounded-lg shadow-md overflow-hidden border ${
+                          aula.esPendiente ? 'border-amber-300 ring-1 ring-amber-200' : 'border-gray-200'
+                        }`}
+                      >
+                        <div
+                          className={`p-4 border-b border-gray-200 bg-gradient-to-r ${
+                            aula.esPendiente
+                              ? 'from-amber-600 to-amber-500'
+                              : 'from-blue-600 to-blue-500'
+                          }`}
+                        >
+                          <div className="flex items-center justify-between">
+                            <h3 className="text-lg font-semibold text-white">{aula.nombre}</h3>
+                            {aula.esPendiente && (
+                              <span className="ml-3 inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-white/20 text-white border border-white/40">
+                                Nota Pendiente
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <div className="p-4 space-y-3">
                           <div className="grid grid-cols-2 gap-4">
@@ -12042,7 +12073,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                                 <span className="text-xs font-semibold text-gray-700">Promedios</span>
                                 <span className="text-[10px] text-gray-400">Excel</span>
                               </div>
-                              <div className="grid grid-cols-3 gap-1">
+                              <div className={`grid ${aula.esPendiente ? 'grid-cols-4' : 'grid-cols-3'} gap-1`}>
                                 <button
                                   onClick={() => descargarPromediosMomento(aula._id, 1)}
                                   className="bg-cyan-600 text-white px-1 py-1 rounded text-[11px] hover:bg-cyan-700 transition-colors"
@@ -12061,6 +12092,14 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                                 >
                                   M3
                                 </button>
+                                {aula.esPendiente && (
+                                  <button
+                                    onClick={() => descargarPromediosMomento(aula._id, 4)}
+                                    className="bg-cyan-600 text-white px-1 py-1 rounded text-[11px] hover:bg-cyan-700 transition-colors"
+                                  >
+                                    M4
+                                  </button>
+                                )}
                               </div>
                             </div>
 
@@ -12070,7 +12109,7 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                                 <span className="text-xs font-semibold text-gray-700">Aprobados</span>
                                 <span className="text-[10px] text-gray-400">Excel</span>
                               </div>
-                              <div className="grid grid-cols-3 gap-1">
+                              <div className={`grid ${aula.esPendiente ? 'grid-cols-4' : 'grid-cols-3'} gap-1`}>
                                 <button
                                   onClick={() => descargarAprobadosMomento(aula._id, 1)}
                                   className="bg-teal-600 text-white px-1 py-1 rounded text-[11px] hover:bg-teal-700 transition-colors"
@@ -12089,6 +12128,14 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                                 >
                                   M3
                                 </button>
+                                {aula.esPendiente && (
+                                  <button
+                                    onClick={() => descargarAprobadosMomento(aula._id, 4)}
+                                    className="bg-teal-600 text-white px-1 py-1 rounded text-[11px] hover:bg-teal-700 transition-colors"
+                                  >
+                                    M4
+                                  </button>
+                                )}
                               </div>
                             </div>
                             
@@ -12731,6 +12778,25 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                                     )}
                                   </div>
                                 </div>
+                              </div>
+
+                              {/* Marca de aula pendiente */}
+                              <div className="flex items-center space-x-2 mt-2">
+                                <input
+                                  id="checkbox-aula-pendiente"
+                                  type="checkbox"
+                                  checked={Boolean(aulaFormData.esPendiente)}
+                                  onChange={(e) =>
+                                    setAulaFormData((prev) => ({
+                                      ...prev,
+                                      esPendiente: e.target.checked
+                                    }))
+                                  }
+                                  className="h-4 w-4 text-amber-600 border-gray-300 rounded"
+                                />
+                                <label htmlFor="checkbox-aula-pendiente" className="text-sm font-medium text-gray-700">
+                                  Aula de Nota Pendiente
+                                </label>
                               </div>
                             </div>
                             

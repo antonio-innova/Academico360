@@ -17,7 +17,7 @@ export async function GET(request) {
     const aulaId = searchParams.get('aulaId');
     const momento = parseInt(searchParams.get('momento') || '1', 10);
 
-    if (!aulaId || ![1, 2, 3].includes(momento)) {
+    if (!aulaId || ![1, 2, 3, 4].includes(momento)) {
       return NextResponse.json({ 
         success: false, 
         message: 'Parámetros inválidos (aulaId y momento requerido)' 

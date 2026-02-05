@@ -27,6 +27,11 @@ const aulaSchema = new mongoose.Schema({
     required: true,
     enum: ['Mañana', 'Tarde', 'Noche']
   },
+  // Indica si el aula corresponde a casos de Nota Pendiente
+  esPendiente: {
+    type: Boolean,
+    default: false
+  },
   periodo: {
     type: String,
     required: true,
@@ -98,6 +103,10 @@ const aulaSchema = new mongoose.Schema({
       3: {
         type: Boolean,
         default: false
+      },
+      4: {
+        type: Boolean,
+        default: false
       }
     },
     // Estructura para almacenar los puntos extras de los estudiantes por momento
@@ -135,6 +144,22 @@ const aulaSchema = new mongoose.Schema({
         }
       }],
       momento3: [{
+        alumnoId: {
+          type: String,
+          required: true
+        },
+        puntos: {
+          type: Number,
+          default: 0,
+          min: 0,
+          max: 2
+        },
+        fechaActualizacion: {
+          type: Date,
+          default: Date.now
+        }
+      }],
+      momento4: [{
         alumnoId: {
           type: String,
           required: true
@@ -189,7 +214,7 @@ const aulaSchema = new mongoose.Schema({
       },
       momento: {
         type: Number,
-        enum: [1, 2, 3],
+        enum: [1, 2, 3, 4],
         default: 1
       },
       calificaciones: [{

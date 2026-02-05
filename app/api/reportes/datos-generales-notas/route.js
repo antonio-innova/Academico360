@@ -92,10 +92,10 @@ export async function GET(request) {
       return NextResponse.json({ success: false, message: 'El parámetro aulaId es requerido' }, { status: 400 });
     }
 
-    // Validar momento
-    const momentosValidos = ['1', '2', '3', 'final'];
+    // Validar momento (incluye 4 para aulas de nota pendiente)
+    const momentosValidos = ['1', '2', '3', '4', 'final'];
     if (!momentosValidos.includes(momentoParam)) {
-      return NextResponse.json({ success: false, message: 'Momento inválido. Debe ser 1, 2, 3 o final' }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Momento inválido. Debe ser 1, 2, 3, 4 o final' }, { status: 400 });
     }
 
     // Obtener el aula con sus datos
@@ -497,24 +497,34 @@ export async function GET(request) {
         }
 
         if (momentoParam === 'final') {
-          // Mostrar solo la definitiva calculada como promedio de los 3 momentos
+          // Mostrar definitiva: promedio de 3 o 4 momentos según si es aula pendiente
+          const esAulaPendiente = aula?.esPendiente === true;
           const bloqueado1 = asig.momentosBloqueados?.[1] === true;
           const bloqueado2 = asig.momentosBloqueados?.[2] === true;
           const bloqueado3 = asig.momentosBloqueados?.[3] === true;
+          const bloqueado4 = asig.momentosBloqueados?.[4] === true;
           
           const nota1 = bloqueado1 ? '' : calcularNotaFinalMomento(asig, estudianteId, 1, alumno);
           const nota2 = bloqueado2 ? '' : calcularNotaFinalMomento(asig, estudianteId, 2, alumno);
           const nota3 = bloqueado3 ? '' : calcularNotaFinalMomento(asig, estudianteId, 3, alumno);
+          const nota4 = (esAulaPendiente && !bloqueado4) ? calcularNotaFinalMomento(asig, estudianteId, 4, alumno) : null;
 
           const valorPromedio = (nota) => {
-            if (nota === '' || nota === null || nota === undefined) return 1;
-            if (nota === 'NC') return 1;
+            if (nota === '' || nota === null || nota === undefined) return null;
+            if (nota === 'NC') return null;
             const numero = typeof nota === 'number' ? nota : parseFloat(nota);
-            return Number.isFinite(numero) ? numero : 1;
+            return Number.isFinite(numero) ? numero : null;
           };
 
           const valores = [valorPromedio(nota1), valorPromedio(nota2), valorPromedio(nota3)];
-          const definitiva = Math.round((valores[0] + valores[1] + valores[2]) / 3);
+          if (esAulaPendiente && nota4 !== null) {
+            const v4 = valorPromedio(nota4);
+            if (v4 !== null) valores.push(v4);
+          }
+          const valsFiltrados = valores.filter(v => v !== null);
+          const definitiva = valsFiltrados.length > 0
+            ? Math.round(valsFiltrados.reduce((a, b) => a + b, 0) / valsFiltrados.length)
+            : '';
 
           notasPorMateria[nombreMateria] = { definitiva };
         } else {
@@ -563,7 +573,7 @@ export async function GET(request) {
         headers.push(`${materia} - DEF`);
       });
     } else {
-      const momentoLabel = momentoParam === '1' ? '1M' : momentoParam === '2' ? '2M' : '3M';
+      const momentoLabel = momentoParam === '1' ? '1M' : momentoParam === '2' ? '2M' : momentoParam === '4' ? '4M' : '3M';
       materiasOrdenadas.forEach(materia => {
         headers.push(`${materia} - ${momentoLabel}`);
       });
@@ -650,8 +660,8 @@ export async function GET(request) {
 
     const buffer = XLSX.write(wb, { bookType: 'xlsx', type: 'buffer' });
     const fecha = new Date().toISOString().split('T')[0];
-    const momentoLabel = momentoParam === 'final' ? 'Definitiva' : `${momentoParam}M`;
-    const archivo = `Datos_Generales_Notas_${nombreAula.replace(/\s+/g,'_')}_${momentoLabel}_${fecha}.xlsx`;
+    const momentoLabelArchivo = momentoParam === 'final' ? 'Definitiva' : `${momentoParam}M`;
+    const archivo = `Datos_Generales_Notas_${nombreAula.replace(/\s+/g,'_')}_${momentoLabelArchivo}_${fecha}.xlsx`;
 
     return new NextResponse(buffer, {
       status: 200,

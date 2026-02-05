@@ -25,12 +25,12 @@ const actividadSchema = new mongoose.Schema({
     type: Number,
     required: true,
     min: 1,
-    max: 3,
+    max: 4,
     validate: {
       validator: function(v) {
-        return [1, 2, 3].includes(v);
+        return [1, 2, 3, 4].includes(v);
       },
-      message: props => `${props.value} no es un momento válido. Debe ser 1, 2 o 3.`
+      message: props => `${props.value} no es un momento válido. Debe ser 1, 2, 3 o 4.`
     }
   },
   // Calificaciones de los alumnos para esta actividad
