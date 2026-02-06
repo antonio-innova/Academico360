@@ -90,6 +90,8 @@ const aulaSchema = new mongoose.Schema({
         default: ''
       }
     },
+    profesorId: { type: mongoose.Schema.Types.ObjectId, required: false },
+    profesorNombre: { type: String, required: false },
     // Objeto para controlar el bloqueo de momentos (previene subir notas pero no afecta reportes)
     momentosBloqueados: {
       1: {

@@ -6778,6 +6778,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
           codigo: materiaId,
           nombre: materiaNombre
         },
+        profesorId: profesor._id || profesor.id,
+        profesorNombre,
         profesor: {
           nombre: profesor.nombre || '',
           apellido: profesor.apellido || ''
@@ -6811,6 +6813,8 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
         const asignacionExistente = asignacionesActuales[indiceAsignacionExistente];
         asignacionesActuales[indiceAsignacionExistente] = {
           ...asignacionExistente,
+          profesorId: profesor._id || profesor.id,
+          profesorNombre: profesorNombre,
           profesor: {
             nombre: profesor.nombre || '',
             apellido: profesor.apellido || ''
@@ -15802,9 +15806,11 @@ const [savingAlumnoMaterias, setSavingAlumnoMaterias] = useState(false);
                               <div className="text-sm">
                                 <span className="text-gray-600">Profesor actual:</span>
                                 <p className="font-medium text-blue-600 mt-1">
-                                  {asignacionExistente.profesorNombre || 
-                                   asignacionExistente.profesor?.nombre + ' ' + (asignacionExistente.profesor?.apellido || '') ||
-                                   'Sin asignar'}
+                                  {(() => {
+                                    const nom = asignacionExistente.profesorNombre ||
+                                      `${asignacionExistente.profesor?.nombre || ''} ${asignacionExistente.profesor?.apellido || ''}`.trim();
+                                    return nom || 'Sin asignar';
+                                  })()}
                                 </p>
                               </div>
                             ) : (
